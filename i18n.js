@@ -1,6 +1,6 @@
 (function(){
   const SK='linuxbio_lang';
-  let lang=localStorage.getItem(SK)||'zh';
+  let lang=localStorage.getItem(SK)||'en';
 
   function apply(l){
     lang=l; localStorage.setItem(SK,l);
