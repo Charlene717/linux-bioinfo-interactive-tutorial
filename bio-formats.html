@@ -1,0 +1,270 @@
+<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Ch 9: Bioinformatics File Formats — Linux Tutorial</title>
+<link rel="stylesheet" href="styles.css">
+</head><body>
+<nav class="top-nav"><div class="top-nav-inner">
+  <a href="index.html" class="top-nav-brand"><span>🐧</span> <span data-zh="Linux 生資教學" data-en="Linux for Bioinfo">Linux 生資教學</span></a>
+  <ul class="top-nav-links">
+    <li><a href="intro.html">Intro</a></li><li><a href="filesystem.html">Shell</a></li><li><a href="file-ops.html">Files</a></li><li><a href="text-streams.html">Streams</a></li><li><a href="grep-cut-sort.html">grep/cut</a></li><li><a href="awk-sed.html">awk/sed</a></li><li><a href="download-compress.html">Net/Zip</a></li><li><a href="conda.html">Conda</a></li><li><a href="bio-formats.html" class="active">Formats</a></li><li><a href="ngs-qc.html">QC</a></li><li><a href="mapping.html">Mapping</a></li><li><a href="bash-scripting.html">Bash</a></li><li><a href="workflow.html">Workflow</a></li><li><a href="hpc-container.html">HPC</a></li>
+  </ul>
+</div></nav>
+<div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
+<header class="page-hero"><div class="step-badge">CHAPTER 9 / 14</div>
+<h1 data-zh="生物資訊檔案格式" data-en="Bioinformatics File Formats">生物資訊檔案格式</h1>
+<p class="subtitle" data-lang="zh">FASTQ / FASTA / GTF / GFF / BED / SAM / BAM / VCF — 認識每個欄位的意義，才能用 Linux 工具操作它們。</p>
+<p class="subtitle" data-lang="en">FASTQ / FASTA / GTF / GFF / BED / SAM / BAM / VCF — knowing the columns is what lets Linux operate on them.</p>
+</header>
+<main class="content-wrap">
+
+<!-- format selector -->
+<section class="section">
+<div class="section-label" data-zh="互動切換" data-en="INTERACTIVE">互動切換</div>
+<h2 data-zh="點選下方格式，看欄位定義與檢查指令" data-en="Click a format to see fields & inspection commands">點選下方格式，看欄位定義與檢查指令</h2>
+<div class="toggle-row" id="fmtTabs">
+<button class="toggle-btn active" data-fmt="fastq">FASTQ</button>
+<button class="toggle-btn" data-fmt="fasta">FASTA</button>
+<button class="toggle-btn" data-fmt="gtf">GTF / GFF</button>
+<button class="toggle-btn" data-fmt="bed">BED</button>
+<button class="toggle-btn" data-fmt="sam">SAM / BAM</button>
+<button class="toggle-btn" data-fmt="vcf">VCF</button>
+</div>
+
+<div class="fmt-block" id="fmt-fastq">
+<h3>FASTQ <span data-zh="（原始 reads）" data-en="(raw sequencing reads)">（原始 reads）</span></h3>
+<p data-lang="zh"><strong>每筆 read 占 4 行：</strong>① <code>@</code>+read ID、② 序列、③ <code>+</code>（可選 ID）、④ Phred quality 字元。常壓縮為 <code>.fastq.gz</code> / <code>.fq.gz</code>。</p>
+<p data-lang="en"><strong>4 lines per read:</strong> ① <code>@</code>+read ID, ② sequence, ③ <code>+</code> (optional repeated ID), ④ Phred quality characters. Almost always gzipped (<code>.fastq.gz</code> / <code>.fq.gz</code>).</p>
+<pre class="fs-tree">@SRR12345.1 1/1
+AGCTACGTACGTAGCTAGCTACGTACGT
++
+IIIIIIIIIIIIIIIIIIIIIIIIIIII</pre>
+<h4 data-zh="常用檢查指令" data-en="Common inspection commands">常用檢查指令</h4>
+<div class="cheat">
+<div class="cheat-cmd">zcat sample.fastq.gz | head -n 4</div><div class="cheat-desc" data-zh="看第一筆 read" data-en="Inspect first read">看第一筆 read</div>
+<div class="cheat-cmd">zcat sample.fastq.gz | awk 'END{print NR/4}'</div><div class="cheat-desc" data-zh="計算 read 總數" data-en="Total read count">read 總數</div>
+<div class="cheat-cmd">zcat sample.fastq.gz | awk 'NR%4==2 {print length($0)}' | sort -u</div><div class="cheat-desc" data-zh="不同的 read length（看是否有 trim 不齊）" data-en="Distinct read lengths (untrimmed = often single value)">read 長度分佈</div>
+</div>
+</div>
+
+<div class="fmt-block" id="fmt-fasta" style="display:none">
+<h3>FASTA <span data-zh="（基因組 / 蛋白序列）" data-en="(genome / protein sequence)">（基因組 / 蛋白序列）</span></h3>
+<p data-lang="zh">交替的 <code>&gt;header</code> 行 + 序列行（序列可跨多行）。</p>
+<p data-lang="en">Alternating <code>&gt;header</code> lines and sequence lines (sequence can span many lines).</p>
+<pre class="fs-tree">&gt;chr1
+AGCTACGTACGTAGCT...
+&gt;chr2
+TTACGTAGCTACGT...
+&gt;chrM
+GATTACA...</pre>
+<h4 data-zh="常用檢查指令" data-en="Common inspection">常用檢查指令</h4>
+<div class="cheat">
+<div class="cheat-cmd">grep "^>" genome.fa | head</div><div class="cheat-desc" data-zh="列出所有染色體 / scaffold" data-en="List all chromosomes / scaffolds">列出所有 chrom</div>
+<div class="cheat-cmd">grep -c "^>" genome.fa</div><div class="cheat-desc" data-zh="計算序列總數" data-en="Count number of sequences">序列總數</div>
+<div class="cheat-cmd">samtools faidx genome.fa</div><div class="cheat-desc" data-zh="建立 .fai 索引（fast random access）" data-en="Build .fai index for fast random access">建立索引</div>
+<div class="cheat-cmd">samtools faidx genome.fa chr1:1000-2000</div><div class="cheat-desc" data-zh="索引建好後可以擷取任意區段" data-en="With the index you can extract any region">擷取片段</div>
+</div>
+</div>
+
+<div class="fmt-block" id="fmt-gtf" style="display:none">
+<h3>GTF / GFF <span data-zh="（gene annotation）" data-en="(gene annotation)">（gene annotation）</span></h3>
+<p data-lang="zh">9 欄 tab 分隔：seqname、source、feature、start、end、score、strand、frame、attributes。<strong>1-based、closed interval</strong>（與 BED 不同！）</p>
+<p data-lang="en">9 tab-separated columns: seqname, source, feature, start, end, score, strand, frame, attributes. <strong>1-based, closed interval</strong> (different from BED!).</p>
+<pre class="fs-tree">chr1  HAVANA  gene        11868  14409  .  +  .  gene_id "ENSG..."; gene_name "DDX11L1";
+chr1  HAVANA  transcript  11868  14409  .  +  .  transcript_id "...";
+chr1  HAVANA  exon        11868  12227  .  +  .  exon_number 1;</pre>
+<h4 data-zh="常用檢查指令" data-en="Common inspection">常用檢查指令</h4>
+<div class="cheat">
+<div class="cheat-cmd">grep -v "^#" genes.gtf | cut -f3 | sort | uniq -c</div><div class="cheat-desc" data-zh="統計 feature 類型數量" data-en="Count feature types">feature 類型統計</div>
+<div class="cheat-cmd">awk '$3=="gene" &amp;&amp; /protein_coding/' genes.gtf | wc -l</div><div class="cheat-desc" data-zh="protein-coding gene 數量" data-en="Number of protein-coding genes">protein-coding 基因數</div>
+<div class="cheat-cmd">cut -f1 genes.gtf | sort -u</div><div class="cheat-desc" data-zh="列出所有 chrom 名稱" data-en="List unique chrom names">所有 chrom 名稱</div>
+</div>
+</div>
+
+<div class="fmt-block" id="fmt-bed" style="display:none">
+<h3>BED <span data-zh="（genomic intervals）" data-en="(genomic intervals)">（genomic intervals）</span></h3>
+<p data-lang="zh">最少 3 欄：chrom、start、end。<strong>0-based、half-open</strong>（即 [start, end)），與 GTF 完全不同！可選欄位：name、score、strand、… 最多 12 欄。</p>
+<p data-lang="en">Minimum 3 columns: chrom, start, end. <strong>0-based, half-open</strong> [start, end). This differs from GTF! Optional: name, score, strand, … up to 12.</p>
+<pre class="fs-tree">chr1  100   200   region1   .   +
+chr1  500   1500  region2   .   -
+chr2  1000  3000  region3   .   +</pre>
+<div class="callout warn"><span class="callout-icon">⚠️</span><div>
+<p data-lang="zh"><strong>致命差異：</strong>BED <code>chr1 100 200</code> 對應 GTF 的 <code>chr1 101 200</code>。混用座標系統是新手最大的 bug 來源——所有區段比較工具（bedtools 等）都假設 BED 是 0-based！</p>
+<p data-lang="en"><strong>Critical:</strong> BED <code>chr1 100 200</code> corresponds to GTF <code>chr1 101 200</code>. Mixing coordinate systems is a top-3 source of bioinformatics bugs — every interval tool (bedtools etc.) assumes BED is 0-based!</p>
+</div></div>
+<h4 data-zh="常用工具" data-en="Common tools">常用工具</h4>
+<div class="cheat">
+<div class="cheat-cmd">sort -k1,1 -k2,2n a.bed</div><div class="cheat-desc" data-zh="標準 BED 排序（chrom 字串、start 數值）" data-en="Standard BED sort (chrom string, start numeric)">標準 BED 排序</div>
+<div class="cheat-cmd">bedtools intersect -a a.bed -b b.bed</div><div class="cheat-desc" data-zh="兩個 BED 的交集" data-en="Intersect two BED files">兩個 BED 交集</div>
+<div class="cheat-cmd">bedtools merge -i sorted.bed</div><div class="cheat-desc" data-zh="合併重疊的區段" data-en="Merge overlapping intervals">合併重疊區段</div>
+</div>
+</div>
+
+<div class="fmt-block" id="fmt-sam" style="display:none">
+<h3>SAM / BAM <span data-zh="（alignment 結果）" data-en="(alignment results)">（alignment 結果）</span></h3>
+<p data-lang="zh">SAM 是文字版、BAM 是壓縮 binary 版（同樣資訊）。每行一筆 alignment：QNAME、FLAG、RNAME、POS、MAPQ、CIGAR、RNEXT、PNEXT、TLEN、SEQ、QUAL、… 1-based。</p>
+<p data-lang="en">SAM is text, BAM is its compressed binary form (same info). Each line is one alignment: QNAME, FLAG, RNAME, POS, MAPQ, CIGAR, RNEXT, PNEXT, TLEN, SEQ, QUAL, … (1-based).</p>
+<pre class="fs-tree">@HD  VN:1.6  SO:coordinate
+@SQ  SN:chr1  LN:248956422
+SRR1.1   99  chr1  10001  60  150M  =  10301  450  AGCT...  IIII...
+SRR1.1  147  chr1  10301  60  150M  =  10001  -450 GCTA...  IIII...</pre>
+<h4 data-zh="常用工具 (samtools)" data-en="Common tools (samtools)">常用工具 (samtools)</h4>
+<div class="cheat">
+<div class="cheat-cmd">samtools view -h a.bam | head</div><div class="cheat-desc" data-zh="-h 顯示 header；BAM 直接讀為文字" data-en="-h includes header; read BAM as text">看內容</div>
+<div class="cheat-cmd">samtools sort -o sorted.bam a.bam</div><div class="cheat-desc" data-zh="按 coordinate 排序（下游工具必要）" data-en="Sort by coordinate (required downstream)">排序</div>
+<div class="cheat-cmd">samtools index sorted.bam</div><div class="cheat-desc" data-zh="建立 .bai 索引" data-en="Build .bai index">建立索引</div>
+<div class="cheat-cmd">samtools flagstat a.bam</div><div class="cheat-desc" data-zh="alignment 統計（mapped、duplicates 等）" data-en="Alignment stats (mapped, duplicates, …)">alignment 統計</div>
+<div class="cheat-cmd">samtools view -c -f 4 a.bam</div><div class="cheat-desc" data-zh="未 mapped 的 read 數（FLAG 4）" data-en="Unmapped reads (FLAG 4)">未 mapped 的 read 數</div>
+</div>
+</div>
+
+<div class="fmt-block" id="fmt-vcf" style="display:none">
+<h3>VCF <span data-zh="（variants）" data-en="(variants)">（variants）</span></h3>
+<p data-lang="zh">前面是 <code>##</code> meta、<code>#CHROM</code> header；資料 8 欄固定（CHROM、POS、ID、REF、ALT、QUAL、FILTER、INFO）+ 每個 sample 一欄 GT。<strong>1-based</strong>。</p>
+<p data-lang="en">Header lines start with <code>##</code> / <code>#CHROM</code>. Data has 8 fixed columns (CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO) + per-sample GT. <strong>1-based</strong>.</p>
+<pre class="fs-tree">##fileformat=VCFv4.2
+#CHROM  POS    ID  REF  ALT  QUAL  FILTER  INFO            FORMAT  S1
+chr1    10500  .   A    G    99    PASS    DP=42;AF=0.5    GT:DP   0/1:42
+chr1    10800  .   T    C    35    LowQ    DP=12           GT:DP   1/1:12</pre>
+<h4 data-zh="常用工具 (bcftools)" data-en="Common tools (bcftools)">常用工具 (bcftools)</h4>
+<div class="cheat">
+<div class="cheat-cmd">grep -v "^#" cohort.vcf | wc -l</div><div class="cheat-desc" data-zh="計算變異數（排除 header）" data-en="Count variants (no header)">變異總數</div>
+<div class="cheat-cmd">bcftools view -f PASS cohort.vcf.gz</div><div class="cheat-desc" data-zh="只看 PASS 的變異" data-en="Only PASS variants">只看 PASS 變異</div>
+<div class="cheat-cmd">bcftools stats a.vcf.gz</div><div class="cheat-desc" data-zh="完整 VCF 統計（SNP/Indel、ts/tv...）" data-en="Full VCF stats (SNPs, indels, ts/tv …)">VCF 統計</div>
+<div class="cheat-cmd">bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\n' a.vcf</div><div class="cheat-desc" data-zh="自訂欄位輸出" data-en="Custom field output">自訂輸出</div>
+</div>
+</div>
+</section>
+
+<!-- coordinate cheat -->
+<section class="section">
+<div class="section-label" data-zh="重要對照" data-en="REFERENCE TABLE">重要對照</div>
+<h2 data-zh="座標系統一張表搞定" data-en="Coordinate systems on one card">座標系統一張表搞定</h2>
+<table class="comp-table">
+<thead><tr><th data-zh="格式" data-en="Format">格式</th><th data-zh="起始" data-en="Start">起始</th><th data-zh="區段" data-en="Interval">區段</th><th data-zh="範例 (chr1 第 100 位)" data-en="Example (chr1 base 100)">範例</th></tr></thead>
+<tbody>
+<tr><td>FASTA</td><td data-zh="從 1 開始" data-en="1-based">1-based</td><td>—</td><td data-zh="位置 100 = 序列第 100 個鹼基" data-en="Position 100 = the 100th base">位置 100 = 第 100 個鹼基</td></tr>
+<tr><td>GTF / GFF</td><td>1-based</td><td data-zh="封閉 [start, end]" data-en="Closed [start, end]">[start, end]</td><td><code>chr1 100 200</code> = 100 到 200，含兩端</td></tr>
+<tr><td>BED</td><td>0-based</td><td data-zh="半開 [start, end)" data-en="Half-open [start, end)">[start, end)</td><td><code>chr1 99 200</code> = 同一段</td></tr>
+<tr><td>SAM / BAM</td><td>1-based</td><td>—</td><td><code>POS = 100</code> = read 開頭比到第 100 位</td></tr>
+<tr><td>VCF</td><td>1-based</td><td>—</td><td><code>POS = 100</code> = 變異發生在第 100 位</td></tr>
+</tbody></table>
+</section>
+
+<!-- Hands-on -->
+<section class="section">
+<div class="section-label" data-zh="動手做" data-en="HANDS-ON">動手做</div>
+<h2 data-zh="互動：分辨並檢查格式" data-en="Interactive: identify and inspect formats">互動：分辨並檢查格式</h2>
+<div class="interactive-panel">
+<div data-term-id="t-fmt"></div>
+</div>
+</section>
+
+<!-- Quiz -->
+<section class="quiz-section">
+<h3>📝 <span data-zh="自我檢測" data-en="Self-Check">自我檢測</span></h3>
+<div class="quiz-q" data-answer="2" data-explain-zh="GTF 是 1-based closed；BED 是 0-based half-open。要表示同一段 (位置 100~200)，BED 要寫 99 200。" data-explain-en="GTF is 1-based closed; BED is 0-based half-open. To describe the same span (100–200), BED uses 99 200.">
+<p data-lang="zh">1. GTF 中的 <code>chr1 100 200</code> 對應 BED 的哪個範圍？</p>
+<p data-lang="en">1. GTF <code>chr1 100 200</code> equals which BED interval?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><code>chr1 100 200</code></div>
+<div class="quiz-opt" data-idx="1"><code>chr1 100 201</code></div>
+<div class="quiz-opt" data-idx="2"><code>chr1 99 200</code></div>
+<div class="quiz-opt" data-idx="3"><code>chr1 99 201</code></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="0" data-explain-zh="FASTQ 一筆 read = 4 行：@ID、序列、+、quality 字元。" data-explain-en="A FASTQ record is 4 lines: @ID, sequence, +, quality.">
+<p data-lang="zh">2. FASTQ 一筆 read 占幾行？</p><p data-lang="en">2. A FASTQ record spans how many lines?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0">4</div>
+<div class="quiz-opt" data-idx="1">2</div>
+<div class="quiz-opt" data-idx="2">3</div>
+<div class="quiz-opt" data-idx="3">8</div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="3" data-explain-zh="samtools flagstat 提供 mapped、proper pair、duplicate 等彙整數據。" data-explain-en="samtools flagstat reports mapped/proper-pair/duplicate counts and totals.">
+<p data-lang="zh">3. 想快速看 BAM 中有多少 reads 比對成功，最快的指令？</p>
+<p data-lang="en">3. Fastest way to see how many BAM reads mapped successfully?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><code>cat a.bam | wc -l</code></div>
+<div class="quiz-opt" data-idx="1"><code>head a.bam</code></div>
+<div class="quiz-opt" data-idx="2"><code>samtools view a.bam</code></div>
+<div class="quiz-opt" data-idx="3"><code>samtools flagstat a.bam</code></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="1" data-explain-zh="VCF 的 ##（meta）與 #CHROM（header）行都以 # 開頭，需用 grep -v 排除。" data-explain-en="VCF's ## (meta) and #CHROM (header) all start with #; use grep -v to exclude.">
+<p data-lang="zh">4. 計算 VCF 中實際變異數的指令？</p>
+<p data-lang="en">4. Command to count actual variants in a VCF?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><code>wc -l cohort.vcf</code></div>
+<div class="quiz-opt" data-idx="1"><code>grep -v "^#" cohort.vcf | wc -l</code></div>
+<div class="quiz-opt" data-idx="2"><code>head cohort.vcf | wc -l</code></div>
+<div class="quiz-opt" data-idx="3"><code>grep "^#" cohort.vcf | wc -l</code></div>
+</div><div class="quiz-feedback"></div></div>
+</section>
+
+<nav class="page-nav">
+  <a href="conda.html"><span class="nav-dir" data-zh="← 上一章" data-en="← Previous">← 上一章</span><span class="nav-title">Ch 8: Conda</span></a>
+  <a href="ngs-qc.html"><span class="nav-dir" data-zh="下一章 →" data-en="Next →">下一章 →</span><span class="nav-title">Ch 10: NGS QC (FastQC + MultiQC)</span></a>
+</nav>
+</main>
+<footer class="site-footer">© Charlene — Linux for Bioinformatics Interactive Tutorial</footer>
+<script src="i18n.js"></script>
+<script src="common.js"></script>
+<script>
+// Format tabs
+document.querySelectorAll('#fmtTabs .toggle-btn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('#fmtTabs .toggle-btn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    document.querySelectorAll('.fmt-block').forEach(x=>x.style.display='none');
+    const t=document.getElementById('fmt-'+b.dataset.fmt);
+    if(t)t.style.display='';
+  });
+});
+
+const FILES={
+  'sample.fastq':'@SRR12345.1\nAGCTACGTACGTAGCT\n+\nIIIIIIIIIIIIIIII\n@SRR12345.2\nACGTACGTAGCTACGT\n+\nIIIIIIIIIIIIIIII\n',
+  'genome.fa':'>chr1\nAGCTACGTACGTAGCTACGT\n>chr2\nTTACGTAGCTAGCTACG\n>chrM\nGATTACAGATTACAGATTAC\n',
+  'genes.gtf':'#!genome-build GRCh38\nchr1\tHAVANA\tgene\t100\t500\t.\t+\t.\tgene_id "G1"; gene_name "TP53";\nchr1\tHAVANA\texon\t100\t200\t.\t+\t.\texon_number 1;\nchr2\tENSEMBL\tgene\t1000\t2000\t.\t+\t.\tgene_id "G2";\n',
+  'regions.bed':'chr1\t99\t200\trgn1\t.\t+\nchr1\t300\t450\trgn2\t.\t-\nchr2\t1000\t1500\trgn3\t.\t+\n',
+  'cohort.vcf':'##fileformat=VCFv4.2\n##contig=<ID=chr1>\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\nchr1\t10500\t.\tA\tG\t99\tPASS\tDP=42\nchr1\t10800\t.\tT\tC\t35\tLowQ\tDP=12\n'
+};
+TermSim.create('t-fmt',{
+  prompt:'student@bio:~$',
+  title:'format-inspector',
+  banner:'Files: sample.fastq  genome.fa  genes.gtf  regions.bed  cohort.vcf — try cat / head / grep / wc.',
+  validate:function(cmd){
+    const c=cmd.trim();
+    function pipe(input,steps){
+      let cur=input;
+      for(const s of steps){
+        const t=s.trim();
+        if(t==='wc -l') cur=String(cur.split('\n').filter(x=>x.length).length);
+        else if(t.startsWith('head -n ')){const n=+t.split(/\s+/)[2];cur=cur.split('\n').slice(0,n).join('\n');}
+        else if(t==='head'){cur=cur.split('\n').slice(0,10).join('\n');}
+        else if(t==='sort -u') cur=Array.from(new Set(cur.split('\n').filter(x=>x.length))).sort().join('\n');
+        else if(t==='sort') cur=cur.split('\n').filter(x=>x.length).sort().join('\n');
+        else if(t==='uniq -c'){const ls=cur.split('\n').filter(x=>x.length);const map={};ls.forEach(l=>{map[l]=(map[l]||0)+1;});cur=Object.keys(map).map(k=>String(map[k]).padStart(6)+' '+k).join('\n');}
+        else if(t.startsWith('cut -f')){const fStr=t.slice(6).split(/\s/)[0];const fields=fStr.split(',').reduce((acc,part)=>{if(part.includes('-')){const [a,b]=part.split('-').map(Number);for(let i=a;i<=b;i++)acc.push(i);}else acc.push(+part);return acc;},[]);cur=cur.split('\n').filter(x=>x.length).map(l=>{const cols=l.split('\t');return fields.map(f=>cols[f-1]||'').join('\t');}).join('\n');}
+        else if(t.startsWith('grep ')){const m=t.match(/grep(\s+-[a-zA-Z]+)?\s+["']?([^"']+)["']?/);if(m){const flags=m[1]||'';const pat=m[2];const re=new RegExp(pat);cur=cur.split('\n').filter(l=>{const ok=re.test(l);return flags.includes('v')?!ok:ok;}).join('\n');}}
+        else { cur='[unsupported step: '+t+']'; }
+      }
+      return cur;
+    }
+    let m,head=c.split('|')[0].trim(),stream=null;
+    if(m=head.match(/^(cat|zcat)\s+(\S+)$/)) stream=FILES[m[2].replace('.gz','')]||null;
+    else if(m=head.match(/^head(?:\s+-n\s+\d+)?\s+(\S+)$/)) stream=FILES[m[1]]||null;
+    else if(m=head.match(/^grep(?:\s+-[a-zA-Z]+)?\s+["']?([^"']+)["']?\s+(\S+)$/)){
+      if(!FILES[m[2]]) return {ok:false,err:true,out:'no such file'};
+      const re=new RegExp(m[1]);const flags=head.match(/grep\s+(-[a-zA-Z]+)/);const fl=flags?flags[1]:'';
+      stream=FILES[m[2]].split('\n').filter(l=>{const ok=re.test(l);return fl.includes('v')?!ok:ok;}).join('\n');
+    }
+    else if(head==='ls') return {ok:true,out:Object.keys(FILES).join('  ')};
+    else if(head==='clear'){document.querySelector('[data-term-id="t-fmt"] .terminal-body').innerHTML='';return {ok:true,out:''};}
+    else return {ok:false,err:true,out:'sh: '+head+' — try: cat <file>, head <file>, grep, ls'};
+    if(stream===null) return {ok:false,err:true,out:'file not found'};
+    const parts=c.split('|');
+    return {ok:true,out:parts.length===1?stream:pipe(stream,parts.slice(1))};
+  }
+});
+</script>
+</body></html>

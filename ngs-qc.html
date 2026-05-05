@@ -1,0 +1,211 @@
+<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Ch 10: NGS QC — Linux Tutorial</title>
+<link rel="stylesheet" href="styles.css">
+</head><body>
+<nav class="top-nav"><div class="top-nav-inner">
+  <a href="index.html" class="top-nav-brand"><span>🐧</span> <span data-zh="Linux 生資教學" data-en="Linux for Bioinfo">Linux 生資教學</span></a>
+  <ul class="top-nav-links">
+    <li><a href="intro.html">Intro</a></li><li><a href="filesystem.html">Shell</a></li><li><a href="file-ops.html">Files</a></li><li><a href="text-streams.html">Streams</a></li><li><a href="grep-cut-sort.html">grep/cut</a></li><li><a href="awk-sed.html">awk/sed</a></li><li><a href="download-compress.html">Net/Zip</a></li><li><a href="conda.html">Conda</a></li><li><a href="bio-formats.html">Formats</a></li><li><a href="ngs-qc.html" class="active">QC</a></li><li><a href="mapping.html">Mapping</a></li><li><a href="bash-scripting.html">Bash</a></li><li><a href="workflow.html">Workflow</a></li><li><a href="hpc-container.html">HPC</a></li>
+  </ul>
+</div></nav>
+<div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
+<header class="page-hero"><div class="step-badge">CHAPTER 10 / 14</div>
+<h1 data-zh="NGS QC：FastQC + MultiQC 實作" data-en="NGS QC: FastQC + MultiQC in Practice">NGS QC：FastQC + MultiQC 實作</h1>
+<p class="subtitle" data-lang="zh">批次跑 FastQC、整合 MultiQC 報告、解讀常見指標——用 Linux 把 100 個樣本的品質一覽無遺。</p>
+<p class="subtitle" data-lang="en">Batch FastQC, aggregate via MultiQC, interpret the metrics — use Linux to oversee QC across 100 samples at a glance.</p>
+</header>
+<main class="content-wrap">
+
+<section class="section">
+<div class="section-label" data-zh="工具" data-en="TOOLS">工具</div>
+<h2 data-zh="FastQC、fastp、MultiQC — 三劍客分工" data-en="FastQC, fastp, MultiQC — the QC trio">FastQC、fastp、MultiQC — 三劍客分工</h2>
+<div class="card-grid cols-3">
+  <div class="card"><div class="card-icon">🔬</div><h4>FastQC</h4>
+    <p data-lang="zh">每個 fastq 檔產出一份 HTML 報告：base quality、sequence content、duplication、adapter、overrepresented…</p>
+    <p data-lang="en">Per-file HTML report: base quality, GC content, duplication, adapter content, overrepresented sequences…</p></div>
+  <div class="card"><div class="card-icon">✂️</div><h4>fastp</h4>
+    <p data-lang="zh">同時做 QC + adapter trimming + quality filter，速度快、報告漂亮。現代 NGS 專案推薦取代 Trimmomatic。</p>
+    <p data-lang="en">QC + adapter trimming + quality filter in one go. Fast, pretty reports — recommended over Trimmomatic.</p></div>
+  <div class="card"><div class="card-icon">📊</div><h4>MultiQC</h4>
+    <p data-lang="zh">掃描資料夾中的 FastQC、STAR、salmon、samtools 等 log，自動彙整成一份多樣本互動式報告。</p>
+    <p data-lang="en">Scans logs from FastQC, STAR, salmon, samtools, … and aggregates everything into one interactive multi-sample report.</p></div>
+</div>
+</section>
+
+<!-- Pipeline -->
+<section class="section">
+<div class="section-label" data-zh="標準流程" data-en="STANDARD PIPELINE">標準流程</div>
+<h2 data-zh="標準 QC 流程（直接抄）" data-en="Standard QC pipeline (copy-paste ready)">標準 QC 流程（直接抄）</h2>
+<div class="workflow">
+  <div class="workflow-step" data-step="1"><h4 data-zh="建立資料夾" data-en="Create folders">建立資料夾</h4>
+    <pre class="cmd-line">mkdir -p results/{fastqc_pre,fastp,fastqc_post,multiqc} logs</pre></div>
+  <div class="workflow-step" data-step="2"><h4 data-zh="原始 FASTQ 跑 FastQC" data-en="Run FastQC on raw FASTQ">原始 FASTQ 跑 FastQC</h4>
+    <pre class="cmd-line">fastqc -t 8 -o results/fastqc_pre raw_data/*.fastq.gz \
+  &gt; logs/fastqc_pre.log 2&gt;&amp;1</pre></div>
+  <div class="workflow-step" data-step="3"><h4 data-zh="fastp trim adapter + 過濾低品質" data-en="fastp adapter + quality trimming">fastp trim adapter + 過濾低品質</h4>
+    <pre class="cmd-line">for s in sampleA sampleB; do
+  fastp \
+    -i raw_data/${s}_R1.fastq.gz -I raw_data/${s}_R2.fastq.gz \
+    -o results/fastp/${s}_R1.fq.gz -O results/fastp/${s}_R2.fq.gz \
+    -h results/fastp/${s}.html -j results/fastp/${s}.json \
+    --thread 8 \
+    2&gt; logs/fastp_${s}.log
+done</pre></div>
+  <div class="workflow-step" data-step="4"><h4 data-zh="整理後 FASTQ 再跑一次 FastQC" data-en="FastQC the trimmed FASTQ">整理後 FASTQ 再跑一次 FastQC</h4>
+    <pre class="cmd-line">fastqc -t 8 -o results/fastqc_post results/fastp/*.fq.gz \
+  &gt; logs/fastqc_post.log 2&gt;&amp;1</pre></div>
+  <div class="workflow-step" data-step="5"><h4 data-zh="MultiQC 一鍵彙整" data-en="MultiQC: aggregate everything">MultiQC 一鍵彙整</h4>
+    <pre class="cmd-line">multiqc results/ -o results/multiqc \
+  --title "RNAseq QC report" \
+  --filename multiqc_report.html</pre></div>
+</div>
+</section>
+
+<!-- FastQC metrics -->
+<section class="section">
+<div class="section-label" data-zh="解讀" data-en="INTERPRETATION">解讀</div>
+<h2 data-zh="FastQC 重要指標的判讀" data-en="Interpreting key FastQC metrics">FastQC 重要指標的判讀</h2>
+<table class="comp-table">
+<thead><tr><th data-zh="模組" data-en="Module">模組</th><th data-zh="意義" data-en="Meaning">意義</th><th data-zh="紅燈時可能原因" data-en="If red, possible cause">紅燈可能原因</th></tr></thead>
+<tbody>
+<tr><td><strong>Per base sequence quality</strong></td><td data-zh="每個鹼基位置的 Phred 分數分佈" data-en="Phred score distribution per position">每位置 Phred 分數</td><td data-zh="尾段品質下降（正常但需 trim）；中段品質低（定序問題）" data-en="Quality drops at 3' end (normal, trim it); mid-read drop = sequencer issue">尾段下降需 trim；中段下降 = 異常</td></tr>
+<tr><td><strong>Per sequence GC content</strong></td><td data-zh="GC 含量分佈" data-en="GC content distribution">GC 含量</td><td data-zh="出現雙峰：可能有污染（細菌、host）" data-en="Bimodal = contamination (bacteria, host)">雙峰 = 污染</td></tr>
+<tr><td><strong>Sequence duplication</strong></td><td data-zh="重複序列比例" data-en="Duplicate fraction">重複序列比例</td><td data-zh="RNA-seq 高表現基因 / amplicon 是預期；DNA-seq 過高 = PCR bias" data-en="High in RNA-seq highly expressed genes / amplicons; suspicious in DNA-seq">RNA-seq 正常；DNA-seq 高 = PCR bias</td></tr>
+<tr><td><strong>Adapter content</strong></td><td data-zh="adapter 殘留" data-en="Adapter contamination">adapter 殘留</td><td data-zh="高 = 需 trim adapter（fastp / Trim Galore）" data-en="High = run adapter trimming (fastp / Trim Galore)">高 = 必須 trim</td></tr>
+<tr><td><strong>Overrepresented sequences</strong></td><td data-zh="出現太多次的序列" data-en="Sequences appearing too often">過度代表序列</td><td data-zh="rRNA、adapter、polyA、污染" data-en="rRNA, adapter, polyA, or contamination">rRNA / adapter / 污染</td></tr>
+</tbody></table>
+<div class="callout tip"><span class="callout-icon">💡</span><div>
+<p data-lang="zh"><strong>實戰判讀原則：</strong>不要看到紅色就慌張——許多紅燈在特定 library type 是正常的（例如 amplicon 的 sequence duplication）。一定要結合 library protocol 與 application 解讀。</p>
+<p data-lang="en"><strong>Reading rule:</strong> a red flag isn't always bad — some are expected for a given library type (e.g. duplication in amplicons). Always interpret in light of library protocol and application.</p>
+</div></div>
+</section>
+
+<!-- MultiQC -->
+<section class="section">
+<div class="section-label" data-zh="MultiQC" data-en="MULTIQC">MultiQC</div>
+<h2 data-zh="MultiQC 是 NGS 工程師的最強盟友" data-en="MultiQC: every NGS engineer's best friend">MultiQC 是 NGS 工程師的最強盟友</h2>
+<div data-lang="zh">
+<p>跑完任何 NGS 流程，<code>multiqc results/</code> 一行就會自動掃描所有 log，產生：</p>
+<ul>
+<li>每個樣本一張卡片，可篩選、排序、互動圖</li>
+<li>各工具的指標彙整（FastQC、STAR、salmon、samtools、bcftools、Picard…）</li>
+<li>輸出 <code>multiqc_data/</code> 包含 TSV 格式，可在 R / Python 進一步分析</li>
+</ul>
+</div>
+<div data-lang="en">
+<p>After any NGS pipeline, one line — <code>multiqc results/</code> — scans all logs and produces:</p>
+<ul>
+<li>One card per sample, filterable / sortable / interactive</li>
+<li>Metrics from FastQC, STAR, salmon, samtools, bcftools, Picard, …</li>
+<li>A <code>multiqc_data/</code> folder with TSVs for downstream R / Python analysis</li>
+</ul>
+</div>
+<div class="cheat">
+<div class="cheat-cmd">multiqc results/</div><div class="cheat-desc" data-zh="掃描 results/ 的所有 log" data-en="Scan all logs under results/">掃描 results 目錄</div>
+<div class="cheat-cmd">multiqc results/ -o results/multiqc -n run1</div><div class="cheat-desc" data-zh="-o 輸出目錄、-n 報告檔名" data-en="-o output dir, -n base filename">指定輸出位置與檔名</div>
+<div class="cheat-cmd">multiqc results/ --interactive</div><div class="cheat-desc" data-zh="所有圖都改成 plotly 互動圖" data-en="Force all plots to interactive Plotly">強制互動式圖表</div>
+<div class="cheat-cmd">multiqc results/ --sample-names samples.tsv</div><div class="cheat-desc" data-zh="用 samples.tsv 重新命名（更清楚的展示）" data-en="Rename samples via samples.tsv for clarity">用 sample table 重新命名</div>
+<div class="cheat-cmd">multiqc results/ -m fastqc -m fastp -m star</div><div class="cheat-desc" data-zh="只解析特定模組（加速）" data-en="Parse only listed modules (faster)">只跑特定模組</div>
+</div>
+</section>
+
+<!-- Hands-on -->
+<section class="section">
+<div class="section-label" data-zh="動手做" data-en="HANDS-ON">動手做</div>
+<h2 data-zh="互動：QC 閾值滑桿" data-en="Interactive: QC threshold slider">互動：QC 閾值滑桿</h2>
+<div data-lang="zh"><p>下面模擬 16 個樣本的 mean quality（Phred）與 adapter %。拖動下方閾值，看哪些樣本通過 QC。</p></div>
+<div data-lang="en"><p>Below is a simulated set of 16 samples with mean Phred and adapter %. Drag the sliders to see which pass.</p></div>
+<div class="interactive-panel">
+<div class="sim-stats"><span class="sim-stat pass" id="qcPass">—</span><span class="sim-stat fail" id="qcFail">—</span></div>
+<div class="slider-group"><label><span data-zh="最低 mean Phred" data-en="Min mean Phred">最低 mean Phred</span> <span id="qcQVal">28</span></label><input type="range" id="qcQ" min="20" max="40" value="28" step="1"></div>
+<div class="slider-group"><label><span data-zh="最高 adapter %" data-en="Max adapter %">最高 adapter %</span> <span id="qcAVal">5</span></label><input type="range" id="qcA" min="1" max="20" value="5" step="1"></div>
+<div id="qcGrid" style="display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-top:14px"></div>
+<p style="font-size:.82rem;color:var(--c-ink-muted);text-align:center;margin-top:10px"><span data-zh="綠 = Pass｜紅 = Fail；數字為 mean Phred / adapter%" data-en="Green = Pass | Red = Fail; numbers = mean Phred / adapter%">綠 = Pass｜紅 = Fail；數字為 mean Phred / adapter%</span></p>
+</div>
+</section>
+
+<!-- Quiz -->
+<section class="quiz-section">
+<h3>📝 <span data-zh="自我檢測" data-en="Self-Check">自我檢測</span></h3>
+<div class="quiz-q" data-answer="2" data-explain-zh="MultiQC 設計目標就是「掃描資料夾、自動彙整任意工具的 log」，不需逐一指定。" data-explain-en="MultiQC is built to walk a directory and aggregate logs from any supported tool — no per-file config.">
+<p data-lang="zh">1. MultiQC 最重要的能力是？</p><p data-lang="en">1. MultiQC's most important capability?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 重新做 QC</span><span data-lang="en">A. Re-run QC itself</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. 直接讀 BAM 計算 mapping rate</span><span data-lang="en">B. Reads BAMs to compute mapping rate</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. 自動掃描資料夾、彙整多種工具的 log 與報告</span><span data-lang="en">C. Walk a folder and aggregate logs from many tools</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 取代 FastQC</span><span data-lang="en">D. Replace FastQC</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="1" data-explain-zh="adapter 殘留要先 trim（fastp / Trim Galore），不然會讓 mapping/quantification 出問題。" data-explain-en="High adapter content should be trimmed before alignment/quantification (fastp / Trim Galore).">
+<p data-lang="zh">2. FastQC 顯示「Adapter Content」紅燈，下一步應該？</p>
+<p data-lang="en">2. FastQC's Adapter Content is red. Next step?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 直接 alignment，FastQC 不準</span><span data-lang="en">A. Skip QC, run alignment</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. 用 fastp 或 Trim Galore 做 adapter trimming</span><span data-lang="en">B. Trim adapters with fastp / Trim Galore</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. 重新定序</span><span data-lang="en">C. Resequence</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 把 adapter 加進 reference</span><span data-lang="en">D. Add adapters to the reference</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="2" data-explain-zh="for loop 是 Bash 中批次處理 100 樣本的標準寫法，是中階以上工程師的日常。" data-explain-en="A bash for-loop is the standard way to batch over many samples — daily routine at intermediate level.">
+<p data-lang="zh">3. 想對 100 個樣本批次跑 fastp，最 Linux-y 的做法？</p>
+<p data-lang="en">3. To run fastp on 100 samples, the most Linux-y way?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 一個一個複製貼上指令</span><span data-lang="en">A. Copy-paste 100 times</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. 用 GUI 一個一個跑</span><span data-lang="en">B. Run one by one in a GUI</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. 寫一個 for loop 或 Snakemake/Nextflow</span><span data-lang="en">C. Write a for-loop or Snakemake/Nextflow</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 全部丟進 Excel</span><span data-lang="en">D. Throw everything into Excel</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="3" data-explain-zh="amplicon 與 RNA-seq 高表現基因 duplicate 比例本來就很高，並非品質問題；DNA-seq 才需擔心 PCR bias。" data-explain-en="Amplicons and highly expressed RNA-seq genes naturally show high duplication; only DNA-seq raises PCR-bias concerns.">
+<p data-lang="zh">4. RNA-seq 樣本的 sequence duplication 達 50%，這代表什麼？</p>
+<p data-lang="en">4. An RNA-seq sample has 50% sequence duplication. Implication?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 必須丟掉</span><span data-lang="en">A. Must discard</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. 是設備問題</span><span data-lang="en">B. Equipment problem</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. 表示 reads 都是 PCR 重複</span><span data-lang="en">C. All reads are PCR duplicates</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. RNA-seq 高表現基因有大量重複是正常的，需結合 application 判讀</span><span data-lang="en">D. Normal in RNA-seq from highly expressed genes; interpret in context</span></div>
+</div><div class="quiz-feedback"></div></div>
+</section>
+
+<nav class="page-nav">
+  <a href="bio-formats.html"><span class="nav-dir" data-zh="← 上一章" data-en="← Previous">← 上一章</span><span class="nav-title">Ch 9: Bioinformatics Formats</span></a>
+  <a href="mapping.html"><span class="nav-dir" data-zh="下一章 →" data-en="Next →">下一章 →</span><span class="nav-title">Ch 11: Mapping & SAM/BAM</span></a>
+</nav>
+</main>
+<footer class="site-footer">© Charlene — Linux for Bioinformatics Interactive Tutorial</footer>
+<script src="i18n.js"></script>
+<script src="common.js"></script>
+<script>
+// QC slider sim
+function rand(min,max){return Math.random()*(max-min)+min;}
+const SAMPLES=[];
+for(let i=0;i<16;i++){
+  let q,a;
+  if(i<10){q=rand(32,38);a=rand(0.5,4);}
+  else if(i<13){q=rand(28,32);a=rand(3,8);}
+  else {q=rand(22,28);a=rand(8,16);}
+  SAMPLES.push({id:'S'+(i+1),q:q,a:a});
+}
+function renderQC(){
+  const minQ=+document.getElementById('qcQ').value, maxA=+document.getElementById('qcA').value;
+  document.getElementById('qcQVal').textContent=minQ;
+  document.getElementById('qcAVal').textContent=maxA;
+  const grid=document.getElementById('qcGrid');grid.innerHTML='';
+  let pass=0,fail=0;
+  SAMPLES.forEach(s=>{
+    const ok=s.q>=minQ && s.a<=maxA;
+    const div=document.createElement('div');
+    div.style.cssText='padding:10px 6px;border-radius:8px;text-align:center;font-size:.78rem;line-height:1.4;font-family:var(--font-mono);'+(ok?'background:#d1fae5;color:#065f46;border:1px solid #059669;':'background:#fee2e2;color:#991b1b;border:1px solid #dc2626;');
+    div.innerHTML='<strong>'+s.id+'</strong><br>Q='+s.q.toFixed(1)+'<br>A='+s.a.toFixed(1)+'%';
+    grid.appendChild(div);
+    if(ok)pass++;else fail++;
+  });
+  const L=window.I18n?I18n.get():'zh';
+  document.getElementById('qcPass').textContent=(L==='zh'?'通過':'Pass')+': '+pass;
+  document.getElementById('qcFail').textContent=(L==='zh'?'剔除':'Fail')+': '+fail;
+}
+['qcQ','qcA'].forEach(id=>document.getElementById(id).addEventListener('input',renderQC));
+document.addEventListener('langchange',renderQC);
+renderQC();
+</script>
+</body></html>

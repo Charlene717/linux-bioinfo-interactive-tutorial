@@ -1,0 +1,299 @@
+<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Ch 6: awk & sed — Linux Tutorial</title>
+<link rel="stylesheet" href="styles.css">
+</head><body>
+<nav class="top-nav"><div class="top-nav-inner">
+  <a href="index.html" class="top-nav-brand"><span>🐧</span> <span data-zh="Linux 生資教學" data-en="Linux for Bioinfo">Linux 生資教學</span></a>
+  <ul class="top-nav-links">
+    <li><a href="intro.html">Intro</a></li><li><a href="filesystem.html">Shell</a></li><li><a href="file-ops.html">Files</a></li><li><a href="text-streams.html">Streams</a></li><li><a href="grep-cut-sort.html">grep/cut</a></li><li><a href="awk-sed.html" class="active">awk/sed</a></li><li><a href="download-compress.html">Net/Zip</a></li><li><a href="conda.html">Conda</a></li><li><a href="bio-formats.html">Formats</a></li><li><a href="ngs-qc.html">QC</a></li><li><a href="mapping.html">Mapping</a></li><li><a href="bash-scripting.html">Bash</a></li><li><a href="workflow.html">Workflow</a></li><li><a href="hpc-container.html">HPC</a></li>
+  </ul>
+</div></nav>
+<div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
+<header class="page-hero"><div class="step-badge">CHAPTER 6 / 14</div>
+<h1 data-zh="awk 與 sed — 文字處理的瑞士刀" data-en="awk & sed — the Swiss-army knives of text">awk 與 sed — 文字處理的瑞士刀</h1>
+<p class="subtitle" data-lang="zh">awk 處理欄位、條件、運算；sed 做批次取代。掌握這兩個就能解 80% 的 GTF/BED/sample sheet 整理問題。</p>
+<p class="subtitle" data-lang="en">awk for fields, conditionals and arithmetic; sed for batch substitution. Together they crack 80% of GTF/BED/sample-sheet wrangling.</p>
+</header>
+<main class="content-wrap">
+
+<!-- awk core idea -->
+<section class="section">
+<div class="section-label" data-zh="核心觀念" data-en="CORE IDEA">核心觀念</div>
+<h2 data-zh="awk 的「pattern { action }」模型" data-en="awk's pattern + action model">awk 的 <code>'pattern { action }'</code> 模型</h2>
+<div data-lang="zh">
+<p>awk 把每一行（record）依分隔符切成欄位 <code>$1, $2, $3 ...</code>（<code>$0</code> 是整行）。語法：</p>
+<pre class="cmd-line">awk 'PATTERN { ACTION }' file</pre>
+<p>對於符合 <code>PATTERN</code> 的每一行，執行 <code>ACTION</code>。<code>BEGIN{}</code> 在處理任何行前執行；<code>END{}</code> 在所有行處理完後執行。<code>NR</code> = 目前行號，<code>NF</code> = 目前行的欄位數。</p>
+</div>
+<div data-lang="en">
+<p>awk splits each line (record) into fields <code>$1, $2, $3 …</code> (<code>$0</code> is the whole line). The grammar:</p>
+<pre class="cmd-line">awk 'PATTERN { ACTION }' file</pre>
+<p>For each line matching <code>PATTERN</code>, run <code>ACTION</code>. <code>BEGIN{}</code> runs before all input; <code>END{}</code> after all lines. <code>NR</code> = current line number, <code>NF</code> = number of fields on the current line.</p>
+</div>
+</section>
+
+<!-- awk cheat -->
+<section class="section">
+<div class="section-label" data-zh="awk 速查" data-en="AWK CHEAT">awk 速查</div>
+<h2><code>awk</code> — <span data-zh="生資最常用的範例" data-en="the most useful patterns in bioinformatics">生資最常用的範例</span></h2>
+<div class="cheat">
+<div class="cheat-cmd">awk '{print $1, $3}' file.gtf</div><div class="cheat-desc" data-zh="印出第 1 與第 3 欄（自動處理多種空白）" data-en="Print columns 1 and 3 (handles any whitespace)">印出指定欄位</div>
+<div class="cheat-cmd">awk '$3=="exon"' genes.gtf</div><div class="cheat-desc" data-zh="只印第 3 欄等於 exon 的行" data-en="Print rows where col 3 equals exon">條件過濾</div>
+<div class="cheat-cmd">awk '$5 &gt; 30' qc.tsv</div><div class="cheat-desc" data-zh="第 5 欄 &gt; 30 的行（數值比較）" data-en="Rows where col 5 > 30 (numeric)">數值條件</div>
+<div class="cheat-cmd">awk 'NR&gt;1 {print}' samples.tsv</div><div class="cheat-desc" data-zh="跳過 header 印出資料行" data-en="Skip header, print data rows">跳過 header</div>
+<div class="cheat-cmd">awk -F',' '{print $2}' samples.csv</div><div class="cheat-desc" data-zh="-F：指定欄位分隔符（CSV 用 ,）" data-en="-F: set field separator (',' for CSV)">指定分隔符</div>
+<div class="cheat-cmd">awk -F'\t' 'BEGIN{OFS="\t"} {$3=$3+1; print}' file</div><div class="cheat-desc" data-zh="輸入 tab、輸出也 tab；把第 3 欄 +1（BED 0/1 base 轉換）" data-en="TAB in/out; col3 += 1 (e.g., BED 0/1-based shift)">in/out 都 tab + 欄位運算</div>
+<div class="cheat-cmd">awk 'END {print NR " lines"}' file</div><div class="cheat-desc" data-zh="只印總行數（不印每一行）" data-en="Print only the line total (not each line)">行數統計</div>
+<div class="cheat-cmd">awk 'NR%4==2 {print length($0)}' f.fq</div><div class="cheat-desc" data-zh="FASTQ 中只取序列行（第 2、6、10 ...），印長度" data-en="Pick only FASTQ sequence lines (2, 6, 10, …) and print length">FASTQ 序列長度</div>
+<div class="cheat-cmd">awk '{a[$1]++} END{for(k in a) print k, a[k]}' f</div><div class="cheat-desc" data-zh="用關聯陣列做頻率統計（比 sort | uniq -c 快）" data-en="Frequency count via associative array (faster than sort | uniq -c)">關聯陣列頻率</div>
+</div>
+</section>
+
+<!-- awk practical -->
+<section class="section">
+<div class="section-label" data-zh="生資實戰" data-en="BIO USE-CASES">生資實戰</div>
+<h2 data-zh="awk 的 5 個生資神技" data-en="5 awk power moves for bioinformatics">awk 的 5 個生資神技</h2>
+<div class="code-tabs">
+<div class="code-tab-btns">
+<button class="code-tab-btn active" onclick="switchTab(this,'a1')">FASTQ</button>
+<button class="code-tab-btn" onclick="switchTab(this,'a2')">GTF</button>
+<button class="code-tab-btn" onclick="switchTab(this,'a3')">BED</button>
+<button class="code-tab-btn" onclick="switchTab(this,'a4')">VCF</button>
+<button class="code-tab-btn" onclick="switchTab(this,'a5')" data-zh="頻率" data-en="Counts">頻率</button>
+</div>
+<div class="code-tab-content active" id="a1"><pre><span class="comment"># 1. 計算 FASTQ 中的總 reads 數 + 平均長度
+# Count reads + average length</span>
+zcat sample.fastq.gz | <span class="func">awk</span> <span class="str">'NR%4==2 {n++; s+=length($0)} END{printf "%d reads, avg %.1f bp\n", n, s/n}'</span></pre></div>
+<div class="code-tab-content" id="a2"><pre><span class="comment"># 2. 從 GTF 提取所有 protein-coding transcripts 的 BED
+# Extract protein_coding transcript intervals as BED</span>
+<span class="func">awk</span> <span class="str">'$3=="transcript" &amp;&amp; /protein_coding/ {print $1"\t"$4-1"\t"$5"\t"$10"\t.\t"$7}'</span> genes.gtf \
+  <span class="op">|</span> <span class="func">tr</span> -d <span class="str">'";'</span> <span class="op">&gt;</span> protein_coding.bed</pre></div>
+<div class="code-tab-content" id="a3"><pre><span class="comment"># 3. BED 0-based vs 1-based 轉換（1-based half-open → 0-based half-open 形式）
+# Convert 1-based to 0-based BED start</span>
+<span class="func">awk</span> -F<span class="str">'\t'</span> <span class="str">'BEGIN{OFS="\t"} {$2=$2-1; print}'</span> in.bed <span class="op">&gt;</span> out.bed
+
+<span class="comment"># 統計 BED 各 chrom 上的 interval 數</span>
+<span class="func">awk</span> <span class="str">'{a[$1]++} END{for(c in a) print c, a[c]}'</span> regions.bed</pre></div>
+<div class="code-tab-content" id="a4"><pre><span class="comment"># 4. VCF 中 PASS 且 QUAL > 30 的變異
+# PASS variants with QUAL > 30 in a VCF</span>
+<span class="func">awk</span> -F<span class="str">'\t'</span> <span class="str">'/^#/{print; next} $7=="PASS" &amp;&amp; $6&gt;30'</span> cohort.vcf <span class="op">&gt;</span> highq.vcf</pre></div>
+<div class="code-tab-content" id="a5"><pre><span class="comment"># 5. 每個 sample 的 read 計數（樣本表 + 計數表 join 不夠時）
+# Per-sample read count from a counts file</span>
+<span class="func">awk</span> -F<span class="str">'\t'</span> <span class="str">'NR&gt;1 {sums[$1]+=$3} END{for(s in sums) print s, sums[s]}'</span> counts.tsv</pre></div>
+</div>
+</section>
+
+<!-- sed -->
+<section class="section">
+<div class="section-label" data-zh="批次取代" data-en="SED">批次取代</div>
+<h2><code>sed</code> — <span data-zh="批次取代與簡單編輯" data-en="batch substitution & light editing">批次取代與簡單編輯</span></h2>
+<div class="cheat">
+<div class="cheat-cmd">sed 's/chr//g' input.bed</div><div class="cheat-desc" data-zh="把所有 chr 拿掉（chr1 → 1）" data-en="Strip 'chr' globally (chr1 → 1)">移除 chr 前綴</div>
+<div class="cheat-cmd">sed 's/^/chr/g' input.bed</div><div class="cheat-desc" data-zh="每行開頭加 chr（1 → chr1）" data-en="Add 'chr' at start of each line">加上 chr 前綴</div>
+<div class="cheat-cmd">sed -n '5,15p' file.txt</div><div class="cheat-desc" data-zh="只印第 5–15 行（-n 抑制其他輸出，p 印出）" data-en="Print only lines 5–15 (-n suppresses, p prints)">取特定行範圍</div>
+<div class="cheat-cmd">sed '/^#/d' file.gtf</div><div class="cheat-desc" data-zh="刪除註解行（# 開頭）" data-en="Delete comment lines (^#)">刪除註解行</div>
+<div class="cheat-cmd">sed 's/\t/,/g' a.tsv &gt; a.csv</div><div class="cheat-desc" data-zh="把 tab 換成逗號（tsv → csv）" data-en="Replace TABs with commas (tsv → csv)">tsv → csv</div>
+<div class="cheat-cmd">sed -i.bak 's/old/new/g' f.txt</div><div class="cheat-desc" data-zh="-i：原地修改檔案；.bak 留備份（最強建議）" data-en="-i: edit in place; .bak keeps a backup (strongly recommended)">原地修改 + 備份</div>
+</div>
+<div class="callout warn"><span class="callout-icon">⚠️</span><div>
+<p data-lang="zh"><strong>陷阱：</strong>macOS 上 <code>sed -i</code> 必須加空字串 <code>sed -i ''</code>，Linux 不需要。寫跨平台 script 時可改用 <code>sed -i.bak</code>（兩邊都認）。</p>
+<p data-lang="en"><strong>Gotcha:</strong> on macOS <code>sed -i</code> needs an empty string <code>sed -i ''</code>; Linux doesn't. For portable scripts use <code>sed -i.bak</code> (works on both).</p>
+</div></div>
+</section>
+
+<!-- awk vs sed -->
+<section class="section">
+<div class="section-label" data-zh="比較" data-en="COMPARISON">比較</div>
+<h2 data-zh="awk vs sed vs grep — 該選哪一個？" data-en="awk vs sed vs grep — which one?">awk vs sed vs grep — 該選哪一個？</h2>
+<table class="comp-table">
+<thead><tr><th data-zh="工具" data-en="Tool">工具</th><th data-zh="擅長" data-en="Strengths">擅長</th><th data-zh="簡單口訣" data-en="Mnemonic">簡單口訣</th></tr></thead>
+<tbody>
+<tr><td><strong>grep</strong></td>
+    <td data-zh="搜尋／篩選整行" data-en="Search / filter whole lines">搜尋／篩選整行</td>
+    <td data-zh="找符合條件的「行」" data-en="Find matching lines">找符合條件的「行」</td></tr>
+<tr><td><strong>cut</strong></td>
+    <td data-zh="抽出固定欄位（tab 分隔）" data-en="Extract fixed columns (TAB)">抽出固定欄位（tab 分隔）</td>
+    <td data-zh="切「欄」" data-en="Slice columns">切「欄」</td></tr>
+<tr><td><strong>sed</strong></td>
+    <td data-zh="批次取代、刪行、行範圍" data-en="Substitution, delete lines, line ranges">批次取代、刪行、行範圍</td>
+    <td data-zh="改寫整段文字" data-en="Edit text in bulk">改寫整段文字</td></tr>
+<tr><td><strong>awk</strong></td>
+    <td data-zh="欄位 + 條件 + 運算 + 統計" data-en="Fields + conditions + math + summary">欄位 + 條件 + 運算 + 統計</td>
+    <td data-zh="當 grep + cut 不夠用時" data-en="When grep + cut aren't enough">當 grep + cut 不夠用時</td></tr>
+</tbody></table>
+</section>
+
+<!-- Hands-on -->
+<section class="section">
+<div class="section-label" data-zh="動手做" data-en="HANDS-ON">動手做</div>
+<h2 data-zh="互動：在 mini GTF 上練習 awk + sed" data-en="Hands-on: awk + sed on a mini GTF">互動：在 mini GTF 上練習 awk + sed</h2>
+<div class="interactive-panel">
+<div data-term-id="t-awk"></div>
+</div>
+<div class="callout tip"><span class="callout-icon">💡</span><div>
+<p data-lang="zh">建議試試：<code>awk '$3=="exon"' genes.gtf</code>、<code>awk '$3=="gene" {print $1, $4, $5}' genes.gtf</code>、<code>sed 's/chr//' regions.bed</code>、<code>awk -F'\t' '{print $1}' samples.tsv | sort -u</code></p>
+<p data-lang="en">Try: <code>awk '$3=="exon"' genes.gtf</code>, <code>awk '$3=="gene" {print $1, $4, $5}' genes.gtf</code>, <code>sed 's/chr//' regions.bed</code>, <code>awk -F'\t' '{print $1}' samples.tsv | sort -u</code></p>
+</div></div>
+</section>
+
+<!-- Quiz -->
+<section class="quiz-section">
+<h3>📝 <span data-zh="自我檢測" data-en="Self-Check">自我檢測</span></h3>
+<div class="quiz-q" data-answer="2" data-explain-zh="$3 是第 3 欄；GTF 中第 3 欄是 feature 類型（gene/transcript/exon...）" data-explain-en="$3 is field 3 — the GTF feature type (gene/transcript/exon...).">
+<p data-lang="zh">1. <code>awk '$3=="exon"' genes.gtf</code> 在做什麼？</p>
+<p data-lang="en">1. What does <code>awk '$3=="exon"' genes.gtf</code> do?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 印出每行的第 3 欄</span><span data-lang="en">A. Print field 3 of every line</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. 找包含「exon」字串的行</span><span data-lang="en">B. Find lines containing the substring "exon"</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. 只印「第 3 欄正好是 exon」的行</span><span data-lang="en">C. Print rows where field 3 is exactly "exon"</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 把第 3 欄改成 exon</span><span data-lang="en">D. Replace field 3 with "exon"</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="0" data-explain-zh="FASTQ 4 行一筆 read：第 2/6/10 行是序列（NR%4==2）。" data-explain-en="FASTQ uses 4 lines per record; the sequence is on lines 2, 6, 10 ... (NR%4==2).">
+<p data-lang="zh">2. 想計算 FASTQ 中每個序列的長度，要選哪一個？</p>
+<p data-lang="en">2. Which awk picks only the FASTQ sequence lines and prints their length?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><code>awk 'NR%4==2 {print length($0)}'</code></div>
+<div class="quiz-opt" data-idx="1"><code>awk 'NR%4==1 {print length($0)}'</code></div>
+<div class="quiz-opt" data-idx="2"><code>awk '{print length($1)}'</code></div>
+<div class="quiz-opt" data-idx="3"><code>awk 'NR%2==0 {print $0}'</code></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="1" data-explain-zh="sed 's/chr//' 將 chr 取代為空字串，常見於 Ensembl/UCSC 命名互轉。" data-explain-en="sed 's/chr//' replaces 'chr' with empty — common Ensembl/UCSC naming swap.">
+<p data-lang="zh">3. <code>sed 's/chr//' regions.bed</code> 的效果？</p>
+<p data-lang="en">3. Effect of <code>sed 's/chr//' regions.bed</code>?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 所有 chr 替換為大寫 CHR</span><span data-lang="en">A. Uppercase chr → CHR</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. 移除每行的第一個 chr（chr1 → 1）</span><span data-lang="en">B. Remove the first 'chr' on each line (chr1 → 1)</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. 移除整個檔名前綴</span><span data-lang="en">C. Strip the file's prefix</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 顯示包含 chr 的行</span><span data-lang="en">D. Print rows containing chr</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="3" data-explain-zh="sed -i 是「原地修改」(in-place)，極危險建議加 .bak 備份；macOS 上 sed -i '' 才正確。" data-explain-en="sed -i edits in place — dangerous; .bak makes a backup. On macOS use sed -i ''.">
+<p data-lang="zh">4. 關於 <code>sed -i</code>，下列何者最正確？</p>
+<p data-lang="en">4. Which is most accurate about <code>sed -i</code>?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 把結果輸出到 stdout</span><span data-lang="en">A. Sends result to stdout</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. 一律建立新檔</span><span data-lang="en">B. Always creates a new file</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. 修改後可以 Ctrl+Z 還原</span><span data-lang="en">C. Editable can be undone with Ctrl+Z</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 直接覆寫原檔；建議搭配 <code>-i.bak</code> 留備份</span><span data-lang="en">D. Overwrites the original; pair with <code>-i.bak</code> for safety</span></div>
+</div><div class="quiz-feedback"></div></div>
+</section>
+
+<nav class="page-nav">
+  <a href="grep-cut-sort.html"><span class="nav-dir" data-zh="← 上一章" data-en="← Previous">← 上一章</span><span class="nav-title">Ch 5: grep / cut / sort</span></a>
+  <a href="download-compress.html"><span class="nav-dir" data-zh="下一章 →" data-en="Next →">下一章 →</span><span class="nav-title">Ch 7: Download & Compression</span></a>
+</nav>
+</main>
+<footer class="site-footer">© Charlene — Linux for Bioinformatics Interactive Tutorial</footer>
+<script src="i18n.js"></script>
+<script src="common.js"></script>
+<script>
+const MINI_GTF=
+'#!genome-build GRCh38\n'+
+'chr1\tHAVANA\tgene\t11868\t14409\t.\t+\t.\tgene_id "ENSG001"; gene_name "DDX11L1"; gene_type "protein_coding";\n'+
+'chr1\tHAVANA\ttranscript\t11868\t14409\t.\t+\t.\ttranscript_id "T1";\n'+
+'chr1\tHAVANA\texon\t11868\t12227\t.\t+\t.\texon_number 1;\n'+
+'chr1\tHAVANA\texon\t12613\t12721\t.\t+\t.\texon_number 2;\n'+
+'chr1\tHAVANA\texon\t13221\t14409\t.\t+\t.\texon_number 3;\n'+
+'chr2\tENSEMBL\tgene\t100000\t101000\t.\t+\t.\tgene_id "ENSG002"; gene_name "TP53"; gene_type "protein_coding";\n'+
+'chr2\tENSEMBL\ttranscript\t100000\t101000\t.\t+\t.\ttranscript_id "T2";\n'+
+'chr2\tENSEMBL\texon\t100000\t100500\t.\t+\t.\texon_number 1;\n'+
+'chrX\tHAVANA\tgene\t50000\t51000\t.\t-\t.\tgene_id "ENSG003"; gene_name "MIR1"; gene_type "miRNA";\n';
+const BED='chr1\t100\t200\trgn1\nchr1\t300\t400\trgn2\nchr2\t500\t800\trgn3\n';
+const SAMPLES='sample\tcondition\nA\tctrl\nB\ttreat\nC\tctrl\nD\ttreat\n';
+
+function evalAwk(prog,input){
+  // Very small awk subset: support $3=="x", $3=="x" {print $1,$4,$5}, NR>1, NR%4==2 {print length($0)}, /pat/, BEGIN/END limited
+  const lines=input.split('\n').filter(x=>x.length||true);
+  const out=[];
+  let m;
+  if(m=prog.match(/^\$(\d+)=="([^"]+)"$/)){
+    const f=+m[1],v=m[2];
+    lines.forEach(l=>{const cols=l.split('\t');if(cols[f-1]===v)out.push(l);});
+  } else if(m=prog.match(/^\$(\d+)=="([^"]+)"\s*\{\s*print\s+(.+)\}$/)){
+    const f=+m[1],v=m[2],pl=m[3];
+    lines.forEach(l=>{const cols=l.split('\t');if(cols[f-1]===v){
+      const items=pl.split(/[, ]+/).map(s=>s.trim()).filter(Boolean);
+      const printed=items.map(it=>{const mm=it.match(/^\$(\d+)$/);return mm?cols[+mm[1]-1]:'';}).join('\t');
+      out.push(printed);
+    }});
+  } else if(prog==='NR>1') {
+    lines.slice(1).forEach(l=>out.push(l));
+  } else if(prog==='NR>1 {print}') {
+    lines.slice(1).forEach(l=>out.push(l));
+  } else if(prog.match(/^NR%4==2/)) {
+    lines.forEach((l,i)=>{if((i+1)%4===2)out.push(String(l.length));});
+  } else if(m=prog.match(/^\/(.+)\/$/)) {
+    const re=new RegExp(m[1]);
+    lines.forEach(l=>{if(re.test(l))out.push(l);});
+  } else if(prog==='END{print NR}'||prog==='END {print NR}') {
+    out.push(String(lines.length));
+  } else if(prog.match(/^\{print\s+\$(\d+)/)){
+    const f=+prog.match(/\$(\d+)/)[1];
+    lines.forEach(l=>{const cols=l.split('\t');out.push(cols[f-1]||'');});
+  } else {
+    out.push('[awk subset can only handle a small set of patterns — try $3=="exon", NR>1, /pattern/, NR%4==2]');
+  }
+  return out.join('\n');
+}
+function evalSed(prog,input){
+  let m;
+  if(m=prog.match(/^s\/([^\/]*)\/([^\/]*)\/g?$/)){
+    const a=m[1],b=m[2],g=prog.endsWith('/g');
+    return input.split('\n').map(l=>g? l.replace(new RegExp(a,'g'),b): l.replace(new RegExp(a),b)).join('\n');
+  }
+  if(m=prog.match(/^\/(.+)\/d$/)){
+    const re=new RegExp(m[1]);
+    return input.split('\n').filter(l=>!re.test(l)).join('\n');
+  }
+  return '[sed subset only supports s/.../...//[g] and /pattern/d]';
+}
+TermSim.create('t-awk',{
+  prompt:'student@bio:~$',
+  title:'awk-sed-sandbox',
+  banner:'Files: genes.gtf (mini GTF)  regions.bed  samples.tsv  — try awk and sed!',
+  validate:function(cmd){
+    const c=cmd.trim();
+    function pipeProcess(input,steps){
+      let cur=input;
+      for(const s of steps){
+        const t=s.trim();
+        if(t==='wc -l') cur=String(cur.split('\n').filter(x=>x.length).length);
+        else if(t.startsWith('head -n ')){const n=+t.split(/\s+/)[2];cur=cur.split('\n').slice(0,n).join('\n');}
+        else if(t==='head'){cur=cur.split('\n').slice(0,10).join('\n');}
+        else if(t==='sort') cur=cur.split('\n').filter(x=>x.length).sort().join('\n');
+        else if(t==='sort -u') cur=Array.from(new Set(cur.split('\n').filter(x=>x.length))).sort().join('\n');
+        else if(t==='uniq -c'){const ls=cur.split('\n').filter(x=>x.length);const map={};ls.forEach(l=>{map[l]=(map[l]||0)+1;});cur=Object.keys(map).map(k=>String(map[k]).padStart(6)+' '+k).join('\n');}
+        else { cur='[unsupported step: '+t+']'; }
+      }
+      return cur;
+    }
+    let m,stream=null,head=c.split('|')[0].trim();
+    if(m=head.match(/^awk\s+(?:-F'?(\S)'?\s+)?'([^']+)'\s+(\S+)$/)){
+      const file=m[3];
+      if(file==='genes.gtf') stream=evalAwk(m[2],MINI_GTF);
+      else if(file==='regions.bed') stream=evalAwk(m[2],BED);
+      else if(file==='samples.tsv') stream=evalAwk(m[2],SAMPLES);
+      else return {ok:false,err:true,out:'awk: '+file+' not found in sandbox'};
+    } else if(m=head.match(/^sed\s+'([^']+)'\s+(\S+)$/)){
+      const file=m[2];
+      let input=null;
+      if(file==='genes.gtf') input=MINI_GTF;
+      else if(file==='regions.bed') input=BED;
+      else if(file==='samples.tsv') input=SAMPLES;
+      if(input===null) return {ok:false,err:true,out:'sed: '+file+' not found'};
+      stream=evalSed(m[1],input);
+    } else if(head==='cat genes.gtf') stream=MINI_GTF;
+    else if(head==='cat regions.bed') stream=BED;
+    else if(head==='cat samples.tsv') stream=SAMPLES;
+    else if(head==='ls') return {ok:true,out:'genes.gtf  regions.bed  samples.tsv'};
+    else if(head==='clear'){document.querySelector('[data-term-id="t-awk"] .terminal-body').innerHTML='';return {ok:true,out:''};}
+    else return {ok:false,err:true,out:"sh: "+head+" — try: awk '$3==\"exon\"' genes.gtf, sed 's/chr//' regions.bed, cat ..., ls"};
+    const parts=c.split('|');
+    const result=parts.length===1? stream : pipeProcess(stream,parts.slice(1));
+    return {ok:true,out:result||'(empty)'};
+  }
+});
+</script>
+</body></html>

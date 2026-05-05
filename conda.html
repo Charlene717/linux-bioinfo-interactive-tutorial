@@ -1,0 +1,272 @@
+<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Ch 8: Conda & Bioconda — Linux Tutorial</title>
+<link rel="stylesheet" href="styles.css">
+</head><body>
+<nav class="top-nav"><div class="top-nav-inner">
+  <a href="index.html" class="top-nav-brand"><span>🐧</span> <span data-zh="Linux 生資教學" data-en="Linux for Bioinfo">Linux 生資教學</span></a>
+  <ul class="top-nav-links">
+    <li><a href="intro.html">Intro</a></li><li><a href="filesystem.html">Shell</a></li><li><a href="file-ops.html">Files</a></li><li><a href="text-streams.html">Streams</a></li><li><a href="grep-cut-sort.html">grep/cut</a></li><li><a href="awk-sed.html">awk/sed</a></li><li><a href="download-compress.html">Net/Zip</a></li><li><a href="conda.html" class="active">Conda</a></li><li><a href="bio-formats.html">Formats</a></li><li><a href="ngs-qc.html">QC</a></li><li><a href="mapping.html">Mapping</a></li><li><a href="bash-scripting.html">Bash</a></li><li><a href="workflow.html">Workflow</a></li><li><a href="hpc-container.html">HPC</a></li>
+  </ul>
+</div></nav>
+<div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
+<header class="page-hero"><div class="step-badge">CHAPTER 8 / 14</div>
+<h1 data-zh="conda、Bioconda 與環境管理" data-en="conda, Bioconda & Environment Management">conda、Bioconda 與環境管理</h1>
+<p class="subtitle" data-lang="zh">每個專案一個環境、environment.yml 是可重現性的起點。生資工具版本怎麼裝、怎麼換、怎麼分享。</p>
+<p class="subtitle" data-lang="en">One env per project — environment.yml is the seed of reproducibility. How to install, switch and share your bioinformatics tool versions.</p>
+</header>
+<main class="content-wrap">
+
+<section class="section">
+<div class="section-label" data-zh="為什麼" data-en="WHY">為什麼</div>
+<h2 data-zh="為什麼要把工具裝在「環境」裡？" data-en="Why install tools inside an environment?">為什麼要把工具裝在「環境」裡？</h2>
+<div data-lang="zh">
+<p>生物資訊分析常見的崩潰場景：</p>
+<ul>
+<li>專案 A 用 samtools 1.9，專案 B 用 samtools 1.20，兩者結果不同</li>
+<li>新裝的 BWA 拉錯了 zlib 版本，把舊環境的 STAR 弄壞了</li>
+<li>論文寫完一年後想重跑，發現工具升級到後續版本，結果差了一截</li>
+</ul>
+<p>解法是 <strong>每個專案隔離一個 conda 環境</strong>，並把環境寫進 <code>environment.yml</code>。即使 5 年後，一行 <code>conda env create -f environment.yml</code> 就能重建。</p>
+</div>
+<div data-lang="en">
+<p>Common bioinformatics meltdowns:</p>
+<ul>
+<li>Project A uses samtools 1.9, project B uses 1.20 — results differ.</li>
+<li>A fresh BWA install drags in the wrong zlib and breaks STAR in another env.</li>
+<li>One year later you can't reproduce a paper because every tool has been silently upgraded.</li>
+</ul>
+<p>The fix: <strong>one isolated conda env per project</strong>, captured in <code>environment.yml</code>. Even five years later, <code>conda env create -f environment.yml</code> recreates it exactly.</p>
+</div>
+</section>
+
+<!-- conda mamba miniconda -->
+<section class="section">
+<div class="section-label" data-zh="安裝" data-en="INSTALL">安裝</div>
+<h2 data-zh="安裝 Miniconda / Mamba" data-en="Installing Miniconda / Mamba">安裝 Miniconda / Mamba</h2>
+<div class="card-grid cols-2">
+<div class="card"><h4>Miniconda <span data-zh="（最小化的 conda）" data-en="(minimal conda)">（最小化的 conda）</span></h4>
+  <p data-lang="zh">不要裝完整的 Anaconda！它包含太多不必要的套件，環境很重。Miniconda 只含 conda + Python，再依需求安裝。</p>
+  <p data-lang="en">Avoid the full Anaconda — it ships with way too much. Miniconda is just conda + Python; install everything else as needed.</p>
+<pre class="cmd-line">wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh
+source ~/.bashrc</pre>
+</div>
+<div class="card"><h4>Mamba <span data-zh="（更快的 conda）" data-en="(faster drop-in)">（更快的 conda）</span></h4>
+  <p data-lang="zh">conda 解依賴超慢，mamba 用 C++ 重寫，速度快 10 倍以上。是現代 NGS 環境的標準配置。</p>
+  <p data-lang="en">conda's solver is slow; mamba is a C++ rewrite ~10× faster — the modern NGS standard.</p>
+<pre class="cmd-line">conda install -n base -c conda-forge mamba -y
+# 之後 mamba 與 conda 用法幾乎一樣 / use mamba like conda</pre>
+</div>
+</div>
+</section>
+
+<!-- channels -->
+<section class="section">
+<div class="section-label" data-zh="設定 channel" data-en="CHANNELS">設定 channel</div>
+<h2 data-zh="Channels — Bioconda 是生資的家" data-en="Channels — Bioconda is bioinformatics' home">Channels — Bioconda 是生資的家</h2>
+<div data-lang="zh"><p>Conda 從「channel」下載套件，常見三個：</p></div>
+<div data-lang="en"><p>Conda fetches packages from "channels". The three you need:</p></div>
+<table class="comp-table">
+<thead><tr><th>Channel</th><th data-zh="提供" data-en="Provides">提供</th></tr></thead>
+<tbody>
+<tr><td><code>conda-forge</code></td><td data-zh="高品質的通用套件（numpy、pandas、R 等）" data-en="High-quality general packages (numpy, pandas, R, …)">高品質通用套件</td></tr>
+<tr><td><code>bioconda</code></td><td data-zh="生資專用工具（samtools、bwa、salmon、deeptools 等）" data-en="Bioinformatics tools (samtools, bwa, salmon, deeptools, …)">生資工具</td></tr>
+<tr><td><code>defaults</code></td><td data-zh="Anaconda 官方 channel；建議移除以避免衝突" data-en="Anaconda's default channel — recommend removing to avoid conflicts">官方 channel（建議移除）</td></tr>
+</tbody></table>
+<div class="code-tabs">
+<div class="code-tab-btns"><button class="code-tab-btn active" onclick="switchTab(this,'cc1')" data-zh="一次設定" data-en="One-time setup">一次設定</button><button class="code-tab-btn" onclick="switchTab(this,'cc2')" data-zh="檢查設定" data-en="Verify">檢查設定</button></div>
+<div class="code-tab-content active" id="cc1"><pre><span class="comment"># Bioconda 官方推薦 channel 順序：strict + conda-forge 優先
+# Bioconda's official setup: strict + conda-forge priority</span>
+<span class="func">conda</span> config --add channels defaults
+<span class="func">conda</span> config --add channels bioconda
+<span class="func">conda</span> config --add channels conda-forge
+<span class="func">conda</span> config --set channel_priority strict</pre></div>
+<div class="code-tab-content" id="cc2"><pre><span class="func">conda</span> config --show channels
+<span class="comment"># channels:
+#   - conda-forge
+#   - bioconda
+#   - defaults</span></pre></div>
+</div>
+</section>
+
+<!-- create env -->
+<section class="section">
+<div class="section-label" data-zh="建立環境" data-en="CREATE ENV">建立環境</div>
+<h2 data-zh="一個 RNA-seq 環境的標準做法" data-en="The standard RNA-seq environment recipe">一個 RNA-seq 環境的標準做法</h2>
+<div class="cheat">
+<div class="cheat-cmd">conda create -n rnaseq python=3.11</div><div class="cheat-desc" data-zh="建立新環境，名為 rnaseq" data-en="Create a new env called rnaseq">建立新環境</div>
+<div class="cheat-cmd">conda activate rnaseq</div><div class="cheat-desc" data-zh="切換到該環境" data-en="Activate the env">切換環境</div>
+<div class="cheat-cmd">conda deactivate</div><div class="cheat-desc" data-zh="退出環境" data-en="Leave the env">退出</div>
+<div class="cheat-cmd">conda env list</div><div class="cheat-desc" data-zh="列出所有環境" data-en="List all envs">列出所有環境</div>
+<div class="cheat-cmd">conda list</div><div class="cheat-desc" data-zh="列出當前環境的套件" data-en="List packages in current env">列出套件</div>
+<div class="cheat-cmd">conda install -c bioconda samtools=1.20</div><div class="cheat-desc" data-zh="指定版本安裝" data-en="Install specific version">指定版本安裝</div>
+<div class="cheat-cmd">conda env remove -n old_env</div><div class="cheat-desc" data-zh="刪除整個環境" data-en="Delete an env">刪除環境</div>
+</div>
+
+<h3 data-zh="一行建好 RNA-seq 標準工具集" data-en="Build the RNA-seq toolset in one line">一行建好 RNA-seq 標準工具集</h3>
+<div class="code-tabs">
+<div class="code-tab-btns"><button class="code-tab-btn active" onclick="switchTab(this,'rs1')">CLI</button><button class="code-tab-btn" onclick="switchTab(this,'rs2')">environment.yml</button></div>
+<div class="code-tab-content active" id="rs1"><pre><span class="func">mamba</span> create -n rnaseq -c conda-forge -c bioconda \
+  python=3.11 \
+  fastqc multiqc \
+  fastp trim-galore \
+  star hisat2 salmon kallisto \
+  samtools bcftools bedtools \
+  subread \
+  -y
+
+<span class="func">conda</span> activate rnaseq
+<span class="func">conda</span> env export <span class="op">&gt;</span> environment.yml</pre></div>
+<div class="code-tab-content" id="rs2"><pre><span class="kw">name:</span> rnaseq
+<span class="kw">channels:</span>
+  - conda-forge
+  - bioconda
+<span class="kw">dependencies:</span>
+  - python=3.11
+  - fastqc=0.12.1
+  - multiqc=1.21
+  - fastp=0.23.4
+  - star=2.7.11b
+  - salmon=1.10.2
+  - samtools=1.20
+  - bedtools=2.31.1
+  - subread=2.0.6
+  - pip
+  - pip:
+      - <span class="comment"># pip-only packages here</span></pre></div>
+</div>
+<div class="callout tip"><span class="callout-icon">💡</span><div>
+<p data-lang="zh"><strong>實務建議：</strong>把 <code>environment.yml</code> 跟 <code>scripts/</code> 一起放進 git；論文發表時連同分析資料一起提供，這就是符合 FAIR + 可重現性的標準做法。</p>
+<p data-lang="en"><strong>Best practice:</strong> commit <code>environment.yml</code> alongside <code>scripts/</code> in git, and ship it with your paper's data release — this is the FAIR-compliant reproducibility baseline.</p>
+</div></div>
+</section>
+
+<!-- Common pitfalls -->
+<section class="section">
+<div class="section-label" data-zh="常見坑" data-en="PITFALLS">常見坑</div>
+<h2 data-zh="新手最常踩的 5 個坑" data-en="The 5 most common pitfalls">新手最常踩的 5 個坑</h2>
+<div class="decision-tree">
+<h4>🌳 <span data-zh="conda 排錯流程" data-en="conda troubleshooting tree">conda 排錯流程</span></h4>
+<div data-lang="zh">
+<div class="dt-node"><span class="dt-q">①</span><div>裝在 <code>base</code> 了 <span class="dt-arrow">→</span> 永遠新建 env，<code>base</code> 只裝 mamba。</div></div>
+<div class="dt-node"><span class="dt-q">②</span><div>解依賴卡住、跑超久 <span class="dt-arrow">→</span> 改用 <code>mamba</code>；或加 <code>channel_priority strict</code>。</div></div>
+<div class="dt-node"><span class="dt-q">③</span><div>裝完工具找不到 <span class="dt-arrow">→</span> 確認 <code>conda activate</code> 了；用 <code>which samtools</code> 查路徑。</div></div>
+<div class="dt-node"><span class="dt-q">④</span><div>跨機器搬不動 <span class="dt-arrow">→</span> 不要直接複製 envs；用 <code>environment.yml</code> 重建。</div></div>
+<div class="dt-node"><span class="dt-q">⑤</span><div>HPC 沒裝 conda <span class="dt-arrow">→</span> 安裝在 <code>$HOME/miniconda3</code>，加進 <code>~/.bashrc</code>，再 <code>conda init bash</code>。</div></div>
+</div>
+<div data-lang="en">
+<div class="dt-node"><span class="dt-q">①</span><div>Installed into <code>base</code> <span class="dt-arrow">→</span> always create a new env. Keep <code>base</code> for mamba only.</div></div>
+<div class="dt-node"><span class="dt-q">②</span><div>Solver hangs forever <span class="dt-arrow">→</span> switch to <code>mamba</code>, or add <code>channel_priority strict</code>.</div></div>
+<div class="dt-node"><span class="dt-q">③</span><div>Tool installed but not found <span class="dt-arrow">→</span> did you <code>conda activate</code>? Check <code>which samtools</code>.</div></div>
+<div class="dt-node"><span class="dt-q">④</span><div>Can't move env across machines <span class="dt-arrow">→</span> don't copy envs; rebuild from <code>environment.yml</code>.</div></div>
+<div class="dt-node"><span class="dt-q">⑤</span><div>No conda on HPC <span class="dt-arrow">→</span> install Miniconda in <code>$HOME/miniconda3</code>, add to <code>~/.bashrc</code>, then <code>conda init bash</code>.</div></div>
+</div>
+</div>
+</section>
+
+<!-- Hands-on -->
+<section class="section">
+<div class="section-label" data-zh="動手做" data-en="HANDS-ON">動手做</div>
+<h2 data-zh="互動：建立並切換 conda 環境" data-en="Interactive: create and switch conda envs">互動：建立並切換 conda 環境</h2>
+<div class="interactive-panel">
+<div data-term-id="t-conda"></div>
+</div>
+</section>
+
+<!-- Quiz -->
+<section class="quiz-section">
+<h3>📝 <span data-zh="自我檢測" data-en="Self-Check">自我檢測</span></h3>
+<div class="quiz-q" data-answer="2" data-explain-zh="environment.yml 是 conda 環境的 declarative 描述，能在任何機器一鍵重建。" data-explain-en="environment.yml is a declarative spec — recreatable anywhere with one command.">
+<p data-lang="zh">1. 為什麼 <code>environment.yml</code> 對可重現性這麼重要？</p>
+<p data-lang="en">1. Why is <code>environment.yml</code> so critical for reproducibility?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 因為它檔案小</span><span data-lang="en">A. Because the file is small</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. 因為它能在 git 中追蹤</span><span data-lang="en">B. Because git can track it</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. 任何人在任何機器都可一行 <code>conda env create -f environment.yml</code> 重建環境</span><span data-lang="en">C. Anyone can rebuild the exact env on any machine with one command</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 它取代論文的 methods 章節</span><span data-lang="en">D. It replaces the methods section of a paper</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="1" data-explain-zh="mamba 是 conda 的 C++ 重寫，依賴解析快很多倍，是現代 NGS 標準工具。" data-explain-en="mamba is a C++ rewrite — much faster dependency resolution, the modern NGS default.">
+<p data-lang="zh">2. <code>mamba</code> 與 <code>conda</code> 的關係？</p>
+<p data-lang="en">2. Relationship between <code>mamba</code> and <code>conda</code>?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. mamba 取代 Python</span><span data-lang="en">A. mamba replaces Python</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. mamba 是更快的 conda 替代品，用法一致</span><span data-lang="en">B. mamba is a faster conda drop-in with the same CLI</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. mamba 只能裝 R 套件</span><span data-lang="en">C. mamba only installs R packages</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. mamba 不支援 Bioconda</span><span data-lang="en">D. mamba doesn't support Bioconda</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="0" data-explain-zh="bioconda 提供 NGS 工具；conda-forge 提供高品質通用套件；strict 設定能避免依賴衝突。" data-explain-en="bioconda has NGS tools; conda-forge has high-quality general packages; strict priority avoids conflicts.">
+<p data-lang="zh">3. 設定 conda channel 的標準推薦順序？</p>
+<p data-lang="en">3. Standard channel priority order?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. conda-forge → bioconda → defaults，並設 strict</span><span data-lang="en">A. conda-forge → bioconda → defaults, with strict priority</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. defaults → bioconda → conda-forge</span><span data-lang="en">B. defaults → bioconda → conda-forge</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. 順序不重要</span><span data-lang="en">C. Order doesn't matter</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 只用 defaults 就好</span><span data-lang="en">D. Use defaults only</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="2" data-explain-zh="工具在環境中安裝後必須先 conda activate，否則 PATH 不含該環境的 bin/。" data-explain-en="After installing into an env, you must conda activate it; otherwise the env's bin/ isn't on PATH.">
+<p data-lang="zh">4. 安裝 samtools 後，<code>which samtools</code> 找不到。最可能的原因？</p>
+<p data-lang="en">4. After installing samtools, <code>which samtools</code> finds nothing. Most likely cause?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. samtools 已過期</span><span data-lang="en">A. samtools has been deprecated</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. 必須重啟電腦</span><span data-lang="en">B. You need to reboot</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. 忘了 <code>conda activate &lt;env&gt;</code></span><span data-lang="en">C. Forgot to <code>conda activate &lt;env&gt;</code></span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 系統不支援 samtools</span><span data-lang="en">D. The system doesn't support samtools</span></div>
+</div><div class="quiz-feedback"></div></div>
+</section>
+
+<nav class="page-nav">
+  <a href="download-compress.html"><span class="nav-dir" data-zh="← 上一章" data-en="← Previous">← 上一章</span><span class="nav-title">Ch 7: Net & Zip</span></a>
+  <a href="bio-formats.html"><span class="nav-dir" data-zh="下一章 →" data-en="Next →">下一章 →</span><span class="nav-title">Ch 9: Bioinformatics Formats</span></a>
+</nav>
+</main>
+<footer class="site-footer">© Charlene — Linux for Bioinformatics Interactive Tutorial</footer>
+<script src="i18n.js"></script>
+<script src="common.js"></script>
+<script>
+const ENVS={'base':['conda','python','mamba']};
+let active='base';
+TermSim.create('t-conda',{
+  prompt:'(base) student@bio:~$',
+  title:'conda-sandbox',
+  banner:'Simulated conda. Try: conda env list / conda create -n rnaseq -c bioconda samtools / conda activate rnaseq / conda list',
+  validate:function(cmd){
+    const c=cmd.trim();
+    const term=document.querySelector('[data-term-id="t-conda"]');
+    function setPrompt(){term.querySelector('.terminal-input-row .prompt').textContent='('+active+') student@bio:~$';}
+    let m;
+    if(c==='conda env list'){return {ok:true,out:'# conda environments:\n'+Object.keys(ENVS).map(n=>(active===n?'* ':'  ')+n.padEnd(16)+' /home/student/miniconda3/envs/'+(n==='base'?'':n)).join('\n')};}
+    if(m=c.match(/^conda create -n (\S+)(?:\s+(.*))?$/)){
+      const name=m[1],rest=m[2]||'';
+      if(ENVS[name]) return {ok:false,err:true,out:'env already exists'};
+      const tools=rest.replace(/-c\s+\S+\s*/g,'').replace(/-y/g,'').trim().split(/\s+/).filter(Boolean);
+      ENVS[name]=tools.length?tools:['python'];
+      return {ok:true,out:'Solving environment...done\nDownloading and Extracting Packages\n\nProceed ([y]/n)? y\n\nPreparing transaction: done\nVerifying transaction: done\nExecuting transaction: done\n#\n# To activate this environment, use:\n#     $ conda activate '+name+'\n#'};
+    }
+    if(m=c.match(/^conda activate (\S+)$/)){
+      if(ENVS[m[1]]){active=m[1];setPrompt();return {ok:true,out:''};}
+      return {ok:false,err:true,out:'EnvironmentNameNotFound: '+m[1]};
+    }
+    if(c==='conda deactivate'){active='base';setPrompt();return {ok:true,out:''};}
+    if(c==='conda list'){return {ok:true,out:'# packages in environment at /home/student/miniconda3/envs/'+active+':\n'+ENVS[active].map(t=>t.padEnd(20)+'  1.x.x').join('\n')};}
+    if(m=c.match(/^conda install(?:\s+-c\s+\S+)*\s+(.+)$/)){
+      const tools=m[1].replace(/-y/g,'').trim().split(/\s+/);
+      tools.forEach(t=>{if(!ENVS[active].includes(t))ENVS[active].push(t);});
+      return {ok:true,out:'Installed: '+tools.join(', ')+' into '+active};
+    }
+    if(m=c.match(/^conda env remove -n (\S+)$/)){
+      if(m[1]==='base') return {ok:false,err:true,out:'Cannot remove base'};
+      delete ENVS[m[1]];
+      return {ok:true,out:'Removed env: '+m[1]};
+    }
+    if(c==='conda env export'){return {ok:true,out:'name: '+active+'\nchannels:\n  - conda-forge\n  - bioconda\ndependencies:\n'+ENVS[active].map(t=>'  - '+t).join('\n')};}
+    if(c==='ls') return {ok:true,out:'environment.yml  README.md'};
+    if(c.startsWith('which ')){const t=c.slice(6).trim();return {ok:true,out:ENVS[active].includes(t)?'/home/student/miniconda3/envs/'+active+'/bin/'+t:'(not found in '+active+')'};}
+    if(c==='clear'){term.querySelector('.terminal-body').innerHTML='';return {ok:true,out:''};}
+    return {ok:false,err:true,out:'sh: '+c+': try conda env list / create / activate / install / list / which'};
+  }
+});
+</script>
+</body></html>

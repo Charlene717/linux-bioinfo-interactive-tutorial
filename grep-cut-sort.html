@@ -1,0 +1,255 @@
+<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Ch 5: Search, Filter & Columns — Linux Tutorial</title>
+<link rel="stylesheet" href="styles.css">
+</head><body>
+<nav class="top-nav"><div class="top-nav-inner">
+  <a href="index.html" class="top-nav-brand"><span>🐧</span> <span data-zh="Linux 生資教學" data-en="Linux for Bioinfo">Linux 生資教學</span></a>
+  <ul class="top-nav-links">
+    <li><a href="intro.html">Intro</a></li><li><a href="filesystem.html">Shell</a></li><li><a href="file-ops.html">Files</a></li><li><a href="text-streams.html">Streams</a></li><li><a href="grep-cut-sort.html" class="active">grep/cut</a></li><li><a href="awk-sed.html">awk/sed</a></li><li><a href="download-compress.html">Net/Zip</a></li><li><a href="conda.html">Conda</a></li><li><a href="bio-formats.html">Formats</a></li><li><a href="ngs-qc.html">QC</a></li><li><a href="mapping.html">Mapping</a></li><li><a href="bash-scripting.html">Bash</a></li><li><a href="workflow.html">Workflow</a></li><li><a href="hpc-container.html">HPC</a></li>
+  </ul>
+</div></nav>
+<div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
+<header class="page-hero"><div class="step-badge">CHAPTER 5 / 14</div>
+<h1 data-zh="搜尋、篩選與欄位處理" data-en="Search, Filter & Column Processing">搜尋、篩選與欄位處理</h1>
+<p class="subtitle" data-lang="zh">grep、cut、sort、uniq、paste、join — 把 GTF、BED、QC 表格處理成你想要的形狀。</p>
+<p class="subtitle" data-lang="en">grep, cut, sort, uniq, paste, join — reshape GTFs, BEDs and QC tables into what you actually need.</p>
+</header>
+<main class="content-wrap">
+
+<!-- grep -->
+<section class="section">
+<div class="section-label" data-zh="搜尋" data-en="SEARCH">搜尋</div>
+<h2><code>grep</code> — <span data-zh="文字搜尋的主力" data-en="the workhorse of text search">文字搜尋的主力</span></h2>
+<div class="cheat">
+<div class="cheat-cmd">grep "TP53" genes.gtf</div><div class="cheat-desc" data-zh="找包含 TP53 的所有行" data-en="Lines containing TP53">找包含 TP53 的所有行</div>
+<div class="cheat-cmd">grep -i "tp53" genes.gtf</div><div class="cheat-desc" data-zh="-i：忽略大小寫" data-en="-i: case-insensitive">忽略大小寫</div>
+<div class="cheat-cmd">grep -v "^#" file.vcf</div><div class="cheat-desc" data-zh="-v：反向：排除註解行（VCF/GFF 必用）" data-en="-v: invert; drop comment lines (essential for VCF/GFF)">排除註解行</div>
+<div class="cheat-cmd">grep -c "^@" sample.fastq</div><div class="cheat-desc" data-zh="-c：只回傳匹配行數" data-en="-c: just print count">只回傳匹配行數</div>
+<div class="cheat-cmd">grep -E "(TP53|BRCA1)" genes.gtf</div><div class="cheat-desc" data-zh="-E：擴充 regex；找 TP53 或 BRCA1" data-en="-E: extended regex; TP53 OR BRCA1">擴充 regex</div>
+<div class="cheat-cmd">grep -n "ERROR" run.log</div><div class="cheat-desc" data-zh="-n：顯示行號（debug log 必備）" data-en="-n: show line numbers — debug essential">顯示行號</div>
+<div class="cheat-cmd">grep -A3 "NM_001" file.txt</div><div class="cheat-desc" data-zh="-A3：匹配後再印 3 行（前後文）" data-en="-A3: print 3 lines after match (context)">顯示前後文</div>
+<div class="cheat-cmd">grep -r "TODO" scripts/</div><div class="cheat-desc" data-zh="-r：遞迴搜尋整個資料夾" data-en="-r: recursive across a directory">遞迴搜尋</div>
+<div class="cheat-cmd">zgrep "@SRR" sample.fastq.gz</div><div class="cheat-desc" data-zh="zgrep：直接在 .gz 檔上 grep" data-en="zgrep: grep directly inside .gz">直接在 .gz 上搜尋</div>
+</div>
+<div class="callout tip"><span class="callout-icon">💡</span><div>
+<p data-lang="zh"><strong>實戰：</strong> <code>grep -v "^#" cohort.vcf | wc -l</code> 計算 VCF 中除了 header 外有幾筆變異，是 VCF 入門最常用的 one-liner。</p>
+<p data-lang="en"><strong>Practical:</strong> <code>grep -v "^#" cohort.vcf | wc -l</code> counts non-header variants in a VCF — a classic one-liner.</p>
+</div></div>
+</section>
+
+<!-- Section 2: cut -->
+<section class="section">
+<div class="section-label" data-zh="切欄位" data-en="COLUMNS">切欄位</div>
+<h2><code>cut</code> — <span data-zh="欄位切片器" data-en="column slicer">欄位切片器</span></h2>
+<div class="cheat">
+<div class="cheat-cmd">cut -f1 genes.gtf</div><div class="cheat-desc" data-zh="取第 1 欄（預設 tab 分隔）" data-en="Take column 1 (TAB-delimited by default)">取第 1 欄</div>
+<div class="cheat-cmd">cut -f1,3 genes.gtf</div><div class="cheat-desc" data-zh="取第 1 與第 3 欄" data-en="Columns 1 and 3">取第 1 與第 3 欄</div>
+<div class="cheat-cmd">cut -f1-4 file.bed</div><div class="cheat-desc" data-zh="取第 1 到 4 欄" data-en="Columns 1 to 4">取第 1 到 4 欄</div>
+<div class="cheat-cmd">cut -d',' -f2 samples.csv</div><div class="cheat-desc" data-zh="-d：指定逗號分隔（CSV）" data-en="-d: delimiter (here CSV)">逗號分隔</div>
+<div class="cheat-cmd">cut -c1-10 sequence.fa</div><div class="cheat-desc" data-zh="-c：取每行第 1–10 個字元" data-en="-c: characters 1-10 of each line">字元位置</div>
+</div>
+<div class="callout warn"><span class="callout-icon">⚠️</span><div>
+<p data-lang="zh"><strong>常見坑：</strong>cut 預設用 <code>tab</code> 分隔（一個 tab 字元）。如果檔案是「多個空白」分隔，要改用 <code>awk</code>：<code>awk '{print $1, $3}'</code>。</p>
+<p data-lang="en"><strong>Common pitfall:</strong> cut defaults to a single TAB. For files separated by multiple spaces, use awk instead: <code>awk '{print $1, $3}'</code>.</p>
+</div></div>
+</section>
+
+<!-- sort uniq -->
+<section class="section">
+<div class="section-label" data-zh="排序與去重" data-en="SORT & DEDUP">排序與去重</div>
+<h2><code>sort</code> + <code>uniq</code> — <span data-zh="統計利器" data-en="the counting combo">統計利器</span></h2>
+<div class="cheat">
+<div class="cheat-cmd">sort file.txt</div><div class="cheat-desc" data-zh="字串排序（A-Z）" data-en="Lexicographic sort (A-Z)">字串排序</div>
+<div class="cheat-cmd">sort -n nums.txt</div><div class="cheat-desc" data-zh="-n：按數字排序" data-en="-n: numeric sort">按數字排序</div>
+<div class="cheat-cmd">sort -k2 file.tsv</div><div class="cheat-desc" data-zh="按第 2 欄排序" data-en="Sort by column 2">按指定欄位排序</div>
+<div class="cheat-cmd">sort -k2,2 -k4,4n file.bed</div><div class="cheat-desc" data-zh="先按欄 2 字串、再按欄 4 數字（BED 排序）" data-en="Col2 string, then col4 numeric (BED sort)">多欄排序</div>
+<div class="cheat-cmd">sort -u file.txt</div><div class="cheat-desc" data-zh="排序 + 去重，相當於 sort | uniq" data-en="Sort + dedup; same as sort | uniq">排序 + 去重</div>
+<div class="cheat-cmd">sort | uniq -c | sort -nr</div><div class="cheat-desc" data-zh="統計每個值出現次數，按頻率高→低排序（黃金組合）" data-en="Count occurrences, sort by frequency desc — the golden combo">頻率統計</div>
+</div>
+
+<h3 data-zh="經典：統計 GTF 中每種 feature 數量" data-en="Classic: feature counts in a GTF">經典：統計 GTF 中每種 feature 數量</h3>
+<div class="code-tabs">
+<div class="code-tab-btns"><button class="code-tab-btn active" onclick="switchTab(this,'gp1')">Pipeline</button><button class="code-tab-btn" onclick="switchTab(this,'gp2')" data-zh="輸出範例" data-en="Output">輸出範例</button></div>
+<div class="code-tab-content active" id="gp1"><pre><span class="comment"># 統計 GTF 中 gene/transcript/exon/CDS 的數量
+# Count feature types in a GTF</span>
+<span class="func">grep</span> -v <span class="str">"^#"</span> genes.gtf <span class="op">|</span> <span class="func">cut</span> -f3 <span class="op">|</span> <span class="func">sort</span> <span class="op">|</span> <span class="func">uniq</span> -c <span class="op">|</span> <span class="func">sort</span> -nr</pre></div>
+<div class="code-tab-content" id="gp2"><pre> 1234567 exon
+  256789 CDS
+   89456 transcript
+   23456 gene
+    9870 five_prime_utr
+    8765 three_prime_utr
+    1234 start_codon
+    1100 stop_codon</pre></div>
+</div>
+</section>
+
+<!-- paste join -->
+<section class="section">
+<div class="section-label" data-zh="合併" data-en="MERGE">合併</div>
+<h2><code>paste</code> &amp; <code>join</code> — <span data-zh="合併兩個檔案" data-en="combining two files">合併兩個檔案</span></h2>
+<div class="card-grid cols-2">
+  <div class="card"><h4><code>paste</code></h4>
+    <p data-lang="zh">把兩個檔案以「左右並排」方式合併（按行對齊）。常見於合併 R1 與 R2 的 read ID 做檢查。</p>
+    <p data-lang="en">Merge two files side by side (line-by-line). Useful e.g. to compare R1 and R2 read IDs.</p>
+    <pre class="cmd-line">paste R1_ids.txt R2_ids.txt | head</pre></div>
+  <div class="card"><h4><code>join</code></h4>
+    <p data-lang="zh">類似 SQL 的 inner join，根據共同欄位合併。要求兩個檔案先按該欄位排序。</p>
+    <p data-lang="en">Like a SQL inner join: merge by a common key. Both files must be sorted on that key first.</p>
+    <pre class="cmd-line">join -t$'\t' -1 1 -2 1 \
+  &lt;(sort sampleA_counts.tsv) \
+  &lt;(sort sampleB_counts.tsv)</pre></div>
+</div>
+</section>
+
+<!-- Big example -->
+<section class="section">
+<div class="section-label" data-zh="實戰" data-en="REAL TASK">實戰</div>
+<h2 data-zh="從 GTF 抽出所有 protein-coding gene 名" data-en="Extract all protein-coding gene names from a GTF">從 GTF 抽出所有 protein-coding gene 名</h2>
+<div class="code-tabs">
+<div class="code-tab-btns"><button class="code-tab-btn active" onclick="switchTab(this,'sc1')" data-zh="step by step" data-en="step by step">Step by step</button></div>
+<div class="code-tab-content active" id="sc1"><pre><span class="comment"># 1. 排除 header（# 開頭）
+# 2. 只取第 3 欄是 gene 的行
+# 3. 篩出 protein_coding
+# 4. 從 attribute 欄抽出 gene_name "..."
+# 5. 排序去重</span>
+
+<span class="func">grep</span> -v <span class="str">"^#"</span> genes.gtf \
+  <span class="op">|</span> <span class="func">awk</span> <span class="str">'$3=="gene"'</span> \
+  <span class="op">|</span> <span class="func">grep</span> <span class="str">"protein_coding"</span> \
+  <span class="op">|</span> <span class="func">grep</span> -oP <span class="str">'gene_name "\K[^"]+'</span> \
+  <span class="op">|</span> <span class="func">sort</span> -u \
+  <span class="op">&gt;</span> protein_coding_genes.txt
+
+<span class="comment"># 確認結果 / verify</span>
+<span class="func">wc</span> -l protein_coding_genes.txt
+<span class="func">head</span> protein_coding_genes.txt</pre></div>
+</div>
+<div class="callout tip"><span class="callout-icon">💡</span><div>
+<p data-lang="zh">這條 5 行的 pipeline 在 30,000 個基因的 GTF 上幾秒就跑完，且不需要任何額外工具。這就是 Linux 文字處理的威力。</p>
+<p data-lang="en">This 5-line pipeline finishes in seconds on a 30,000-gene GTF without any extra tools. That's Linux's text power.</p>
+</div></div>
+</section>
+
+<!-- Hands-on -->
+<section class="section">
+<div class="section-label" data-zh="動手做" data-en="HANDS-ON">動手做</div>
+<h2 data-zh="互動：在 mini GTF 上練習" data-en="Hands-on: practice on a mini GTF">互動：在 mini GTF 上練習</h2>
+<div class="interactive-panel">
+<div data-term-id="t-grep"></div>
+</div>
+<div class="callout tip"><span class="callout-icon">💡</span><div>
+<p data-lang="zh">建議依序試試：<code>cat genes.gtf | head</code>、<code>grep -v "^#" genes.gtf | wc -l</code>、<code>cut -f1 genes.gtf | sort -u</code>、<code>cut -f3 genes.gtf | sort | uniq -c</code></p>
+<p data-lang="en">Try in order: <code>cat genes.gtf | head</code>, <code>grep -v "^#" genes.gtf | wc -l</code>, <code>cut -f1 genes.gtf | sort -u</code>, <code>cut -f3 genes.gtf | sort | uniq -c</code></p>
+</div></div>
+</section>
+
+<!-- Quiz -->
+<section class="quiz-section">
+<h3>📝 <span data-zh="自我檢測" data-en="Self-Check">自我檢測</span></h3>
+<div class="quiz-q" data-answer="2" data-explain-zh="grep -v 反向匹配，^# 表示「以 # 開頭的行」（VCF/GFF/GTF 的註解行）。" data-explain-en="grep -v inverts the match; ^# means lines starting with # — comments in VCF/GFF/GTF.">
+<p data-lang="zh">1. <code>grep -v "^#" cohort.vcf | wc -l</code> 在做什麼？</p>
+<p data-lang="en">1. What is <code>grep -v "^#" cohort.vcf | wc -l</code> doing?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 找包含 # 的行</span><span data-lang="en">A. Find lines containing #</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. 計算註解行數</span><span data-lang="en">B. Count comment lines</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. 排除 header（# 開頭），計算實際變異數</span><span data-lang="en">C. Exclude header lines, count actual variants</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 看 VCF 的最後一行</span><span data-lang="en">D. Show the last VCF line</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="0" data-explain-zh="cut 預設用 tab；CSV 是逗號，要 -d','。" data-explain-en="cut defaults to TAB; for CSV use -d','.">
+<p data-lang="zh">2. 處理 CSV 用 <code>cut -f2</code> 取不到正確的第 2 欄，為什麼？</p>
+<p data-lang="en">2. Why doesn't <code>cut -f2</code> give the right column on a CSV?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 預設分隔符是 tab，需 -d','</span><span data-lang="en">A. Default delimiter is TAB; use -d','</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. cut 不能處理 CSV</span><span data-lang="en">B. cut can't handle CSV</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. cut 從 0 開始計數</span><span data-lang="en">C. cut counts from 0</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 必須先 sort</span><span data-lang="en">D. You must sort first</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="3" data-explain-zh="sort | uniq -c | sort -nr 是統計頻率的黃金組合；uniq 必須先排序才能正確去重。" data-explain-en="sort | uniq -c | sort -nr is the golden frequency combo; uniq requires pre-sorted input.">
+<p data-lang="zh">3. 想統計 BED 檔每條染色體的 interval 數，並按頻率高→低排序，正確 pipeline 是？</p>
+<p data-lang="en">3. To count intervals per chromosome in a BED file and sort by frequency desc:</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><code>cut -f1 a.bed | uniq</code></div>
+<div class="quiz-opt" data-idx="1"><code>cut -f1 a.bed | uniq -c | sort -nr</code></div>
+<div class="quiz-opt" data-idx="2"><code>cut -f1 a.bed | sort | uniq | sort -nr</code></div>
+<div class="quiz-opt" data-idx="3"><code>cut -f1 a.bed | sort | uniq -c | sort -nr</code></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="2" data-explain-zh="join 要求兩邊都按 join 的欄位排序，否則結果可能漏行；通常用 process substitution 或先排序。" data-explain-en="join requires both inputs sorted on the join key; otherwise rows are silently dropped.">
+<p data-lang="zh">4. 用 <code>join</code> 合併兩個 sample 表前最重要的步驟是？</p>
+<p data-lang="en">4. The most important step before <code>join</code>-ing two sample tables?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 先用 cut 拆欄位</span><span data-lang="en">A. cut to split columns</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. 把空白變成 tab</span><span data-lang="en">B. Replace spaces with tabs</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. 兩個檔案都要先 <code>sort</code>（按 join 的欄位）</span><span data-lang="en">C. <code>sort</code> both files on the join key first</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 先 head 取前 10 行</span><span data-lang="en">D. head the first 10 lines</span></div>
+</div><div class="quiz-feedback"></div></div>
+</section>
+
+<nav class="page-nav">
+  <a href="text-streams.html"><span class="nav-dir" data-zh="← 上一章" data-en="← Previous">← 上一章</span><span class="nav-title">Ch 4: Streams & Pipes</span></a>
+  <a href="awk-sed.html"><span class="nav-dir" data-zh="下一章 →" data-en="Next →">下一章 →</span><span class="nav-title">Ch 6: awk & sed</span></a>
+</nav>
+</main>
+<footer class="site-footer">© Charlene — Linux for Bioinformatics Interactive Tutorial</footer>
+<script src="i18n.js"></script>
+<script src="common.js"></script>
+<script>
+const MINI_GTF=
+'#!genome-build GRCh38\n'+
+'chr1\tHAVANA\tgene\t11868\t14409\t.\t+\t.\tgene_id "ENSG001"; gene_name "DDX11L1"; gene_type "protein_coding";\n'+
+'chr1\tHAVANA\ttranscript\t11868\t14409\t.\t+\t.\ttranscript_id "T1";\n'+
+'chr1\tHAVANA\texon\t11868\t12227\t.\t+\t.\texon_number 1;\n'+
+'chr1\tHAVANA\texon\t12613\t12721\t.\t+\t.\texon_number 2;\n'+
+'chr1\tHAVANA\texon\t13221\t14409\t.\t+\t.\texon_number 3;\n'+
+'chr2\tENSEMBL\tgene\t100000\t101000\t.\t+\t.\tgene_id "ENSG002"; gene_name "TP53"; gene_type "protein_coding";\n'+
+'chr2\tENSEMBL\ttranscript\t100000\t101000\t.\t+\t.\ttranscript_id "T2";\n'+
+'chr2\tENSEMBL\texon\t100000\t100500\t.\t+\t.\texon_number 1;\n'+
+'chrX\tHAVANA\tgene\t50000\t51000\t.\t-\t.\tgene_id "ENSG003"; gene_name "MIR1"; gene_type "miRNA";\n'+
+'chrX\tHAVANA\ttranscript\t50000\t51000\t.\t-\t.\ttranscript_id "T3";\n';
+TermSim.create('t-grep',{
+  prompt:'student@bio:~$',
+  title:'mini-gtf-sandbox',
+  banner:'A small file "genes.gtf" (10 lines + header) is loaded. Try cat / grep / cut / sort / uniq.',
+  validate:function(cmd){
+    const c=cmd.trim();
+    function pipeProcess(input,steps){
+      let cur=input;
+      for(const s of steps){
+        const t=s.trim();
+        if(t==='wc -l') cur=String(cur.split('\n').filter(x=>x.length).length);
+        else if(t.startsWith('head -n ')){const n=+t.split(/\s+/)[2];cur=cur.split('\n').slice(0,n).join('\n');}
+        else if(t==='head'){cur=cur.split('\n').slice(0,10).join('\n');}
+        else if(t==='sort') cur=cur.split('\n').filter(x=>x.length).sort().join('\n');
+        else if(t==='sort -u') cur=Array.from(new Set(cur.split('\n').filter(x=>x.length))).sort().join('\n');
+        else if(t==='sort -nr') cur=cur.split('\n').filter(x=>x.length).sort((a,b)=>parseFloat(b)-parseFloat(a)).join('\n');
+        else if(t==='uniq') cur=cur.split('\n').filter((x,i,a)=>i===0||x!==a[i-1]).join('\n');
+        else if(t==='uniq -c'){const ls=cur.split('\n').filter(x=>x.length);const map={};ls.forEach(l=>{map[l]=(map[l]||0)+1;});cur=Object.keys(map).map(k=>String(map[k]).padStart(6)+' '+k).join('\n');}
+        else if(t.startsWith('cut -f')){const fStr=t.slice(6).split(/\s/)[0];const fields=fStr.split(',').reduce((acc,part)=>{if(part.includes('-')){const [a,b]=part.split('-').map(Number);for(let i=a;i<=b;i++)acc.push(i);}else acc.push(+part);return acc;},[]);cur=cur.split('\n').map(l=>{const cols=l.split('\t');return fields.map(f=>cols[f-1]||'').join('\t');}).filter(x=>x.length).join('\n');}
+        else if(t.startsWith('grep ')){const m=t.match(/grep(\s+-[a-zA-Z]+)?\s+["']?([^"']+)["']?/);if(m){const flags=m[1]||'';const pat=m[2];const re=new RegExp(pat);cur=cur.split('\n').filter(l=>{const ok=re.test(l);return flags.includes('v')?!ok:ok;}).join('\n');}}
+        else { cur='[unsupported step: '+t+']'; }
+      }
+      return cur;
+    }
+    const parts=c.split('|');
+    const head=parts[0].trim();
+    let stream=null;
+    if(head==='cat genes.gtf' || head==='zcat genes.gtf.gz') stream=MINI_GTF;
+    else if(head==='ls') return {ok:true,out:'genes.gtf  README.md'};
+    else if(head==='clear'){document.querySelector('[data-term-id="t-grep"] .terminal-body').innerHTML='';return {ok:true,out:''};}
+    else if(head.startsWith('grep ')){
+      const m=head.match(/grep(\s+-[a-zA-Z]+)?\s+["']?([^"']+)["']?\s+(\S+)/);
+      if(m){const flags=m[1]||'';const pat=m[2];const file=m[3];if(file==='genes.gtf'){const re=new RegExp(pat);const lines=MINI_GTF.split('\n').filter(l=>{const ok=re.test(l);return flags.includes('v')?!ok:ok;}).join('\n');stream=lines;}else return {ok:false,err:true,out:'grep: '+file+': no such file'};}
+    }
+    else if(head.startsWith('echo ')) return {ok:true,out:head.slice(5)};
+    else if(head==='head genes.gtf'||head==='head -n 5 genes.gtf') return {ok:true,out:MINI_GTF.split('\n').slice(0,head.includes('-n 5')?5:10).join('\n')};
+    else return {ok:false,err:true,out:'sh: '+head+': try cat genes.gtf, grep, head, ls, or pipe combinations'};
+    if(stream===null) return {ok:false,err:true,out:'no input stream'};
+    const result=parts.length===1? stream.split('\n').slice(0,15).join('\n')+(stream.split('\n').length>15?'\n... (more lines)':'') : pipeProcess(stream,parts.slice(1));
+    return {ok:true,out:result};
+  }
+});
+</script>
+</body></html>

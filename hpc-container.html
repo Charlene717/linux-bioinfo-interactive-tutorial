@@ -1,0 +1,297 @@
+<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Ch 14: HPC, Slurm & Containers — Linux Tutorial</title>
+<link rel="stylesheet" href="styles.css">
+</head><body>
+<nav class="top-nav"><div class="top-nav-inner">
+  <a href="index.html" class="top-nav-brand"><span>🐧</span> <span data-zh="Linux 生資教學" data-en="Linux for Bioinfo">Linux 生資教學</span></a>
+  <ul class="top-nav-links">
+    <li><a href="intro.html">Intro</a></li><li><a href="filesystem.html">Shell</a></li><li><a href="file-ops.html">Files</a></li><li><a href="text-streams.html">Streams</a></li><li><a href="grep-cut-sort.html">grep/cut</a></li><li><a href="awk-sed.html">awk/sed</a></li><li><a href="download-compress.html">Net/Zip</a></li><li><a href="conda.html">Conda</a></li><li><a href="bio-formats.html">Formats</a></li><li><a href="ngs-qc.html">QC</a></li><li><a href="mapping.html">Mapping</a></li><li><a href="bash-scripting.html">Bash</a></li><li><a href="workflow.html">Workflow</a></li><li><a href="hpc-container.html" class="active">HPC</a></li>
+  </ul>
+</div></nav>
+<div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
+<header class="page-hero"><div class="step-badge">CHAPTER 14 / 14</div>
+<h1 data-zh="HPC、Slurm 與容器" data-en="HPC, Slurm & Containers">HPC、Slurm 與容器</h1>
+<p class="subtitle" data-lang="zh">把 pipeline 部署到 cluster：Slurm 提交任務、規劃 CPU/memory/walltime；用 Apptainer / Docker 確保環境一致。</p>
+<p class="subtitle" data-lang="en">Move your pipeline onto the cluster: submit with Slurm, budget CPU/memory/walltime, and use Apptainer / Docker to lock the environment.</p>
+</header>
+<main class="content-wrap">
+
+<!-- HPC concepts -->
+<section class="section">
+<div class="section-label" data-zh="觀念" data-en="CONCEPT">觀念</div>
+<h2 data-zh="HPC 的世界 — Login node、Compute node、Storage" data-en="The HPC world — login, compute, storage">HPC 的世界 — Login node、Compute node、Storage</h2>
+<div data-lang="zh">
+<p>HPC（High-Performance Computing cluster）是一群連在一起的機器，由排程器（如 Slurm）統一管理。常見組成：</p>
+<ul>
+<li><strong>Login node</strong>：你 SSH 連進去的機器，<em>不要在這裡跑大型計算！</em>只用來瀏覽檔案、提交工作。</li>
+<li><strong>Compute node</strong>：實際跑分析的機器，必須透過 Slurm 申請。</li>
+<li><strong>Storage</strong>：通常分多區，<code>/home</code> 容量小但永久、<code>/scratch</code> 容量大但會清除、<code>/data</code> 共享/長期儲存。</li>
+</ul>
+</div>
+<div data-lang="en">
+<p>An HPC cluster is many machines glued together by a scheduler (e.g. Slurm). Typical layers:</p>
+<ul>
+<li><strong>Login node</strong>: where SSH lands you. <em>Never run heavy compute here.</em> Use it only for browsing and job submission.</li>
+<li><strong>Compute nodes</strong>: where real work runs — you must request them via Slurm.</li>
+<li><strong>Storage</strong>: usually tiered — <code>/home</code> small but permanent, <code>/scratch</code> large but ephemeral, <code>/data</code> shared/long-term.</li>
+</ul>
+</div>
+<div class="callout danger"><span class="callout-icon">🛑</span><div>
+<p data-lang="zh"><strong>HPC 第一條規則：</strong>不要在 login node 上跑 <code>fastp</code>、<code>STAR</code>、<code>BWA</code> 等。Login node 是和所有人共用的入口，會被你的工作拖垮，可能還收到管理員警告信。</p>
+<p data-lang="en"><strong>HPC rule #1:</strong> never run <code>fastp</code> / <code>STAR</code> / <code>BWA</code> on the login node. It's a shared entry point — you'll grind it for everyone and probably get a "please don't" email from sysadmins.</p>
+</div></div>
+</section>
+
+<!-- Slurm cheat -->
+<section class="section">
+<div class="section-label" data-zh="Slurm" data-en="SLURM">Slurm</div>
+<h2><code>Slurm</code> — <span data-zh="最普及的 HPC 排程器" data-en="the most common HPC scheduler">最普及的 HPC 排程器</span></h2>
+<div class="cheat">
+<div class="cheat-cmd">sinfo</div><div class="cheat-desc" data-zh="看 cluster 上有哪些 partition / 節點狀態" data-en="View partitions and node status">看 partition / 節點狀態</div>
+<div class="cheat-cmd">squeue</div><div class="cheat-desc" data-zh="看當前所有人的工作隊列" data-en="See everyone's queued / running jobs">看工作隊列</div>
+<div class="cheat-cmd">squeue -u $USER</div><div class="cheat-desc" data-zh="只看自己的工作" data-en="Show only your jobs">只看自己的工作</div>
+<div class="cheat-cmd">sbatch run_job.sh</div><div class="cheat-desc" data-zh="提交批次任務（最常用）" data-en="Submit a batch job (most common)">提交批次任務</div>
+<div class="cheat-cmd">srun --cpus-per-task=4 --mem=8G --time=01:00:00 bash</div><div class="cheat-desc" data-zh="即時拿一個 compute node 跑互動 shell" data-en="Grab a compute node interactively">互動取用 compute node</div>
+<div class="cheat-cmd">scancel JOB_ID</div><div class="cheat-desc" data-zh="取消任務" data-en="Cancel a job">取消任務</div>
+<div class="cheat-cmd">scontrol show job JOB_ID</div><div class="cheat-desc" data-zh="看任務細節（資源、log、狀態）" data-en="Inspect job details (resources, log, state)">看任務細節</div>
+<div class="cheat-cmd">sacct -j JOB_ID --format=JobID,State,Elapsed,MaxRSS</div><div class="cheat-desc" data-zh="看完成任務的實際資源使用（規劃用）" data-en="Check actual resource usage of finished jobs">看實際資源用量</div>
+</div>
+</section>
+
+<!-- sbatch script -->
+<section class="section">
+<div class="section-label" data-zh="範例" data-en="EXAMPLE">範例</div>
+<h2 data-zh="標準的 sbatch script 長這樣" data-en="A standard sbatch script">標準的 sbatch script 長這樣</h2>
+<div class="code-tabs">
+<div class="code-tab-btns"><button class="code-tab-btn active" onclick="switchTab(this,'sb1')">run_job.sh</button><button class="code-tab-btn" onclick="switchTab(this,'sb2')" data-zh="提交與監控" data-en="Submit & monitor">提交與監控</button></div>
+<div class="code-tab-content active" id="sb1"><pre><span class="comment">#!/usr/bin/env bash
+# run_job.sh — submit with: sbatch run_job.sh</span>
+
+<span class="comment">#SBATCH --job-name=fastqc
+#SBATCH --partition=normal
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=16G
+#SBATCH --time=04:00:00
+#SBATCH --output=logs/fastqc_%j.out
+#SBATCH --error=logs/fastqc_%j.err
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=you@uni.edu
+# %j 會被替換為 job ID</span>
+
+<span class="kw">set</span> -euo pipefail
+
+<span class="comment"># 啟用 conda env / Activate conda env</span>
+<span class="kw">source</span> ~/miniconda3/etc/profile.d/conda.sh
+<span class="func">conda</span> activate rnaseq
+
+<span class="comment"># 跑流程 / Run pipeline</span>
+<span class="func">bash</span> scripts/run_qc.sh</pre></div>
+<div class="code-tab-content" id="sb2"><pre><span class="comment"># 提交 / Submit</span>
+<span class="func">sbatch</span> run_job.sh
+<span class="comment"># Submitted batch job 12345678</span>
+
+<span class="comment"># 看狀態 / Check status</span>
+<span class="func">squeue</span> -u $USER
+
+<span class="comment"># 即時看 stdout（job 跑完前）/ Tail stdout while running</span>
+<span class="func">tail</span> -f logs/fastqc_12345678.out
+
+<span class="comment"># 完成後看實際資源使用 / Post-mortem resource usage</span>
+<span class="func">sacct</span> -j 12345678 --format=JobID,State,Elapsed,MaxRSS,ReqMem,NCPUS</pre></div>
+</div>
+<div class="callout tip"><span class="callout-icon">💡</span><div>
+<p data-lang="zh"><strong>資源規劃心法：</strong>第一次跑時申請寬鬆（CPU 8、mem 32G、time 4h），跑完用 <code>sacct</code> 看實際 <code>MaxRSS</code>（記憶體峰值）和 <code>Elapsed</code>，下次精確調整。Cluster 的隊列權重和記憶體使用率有關，過度申請會排很久。</p>
+<p data-lang="en"><strong>Resource planning tip:</strong> first run with generous limits (8 CPUs, 32 G, 4 h). After completion check <code>sacct</code> for actual <code>MaxRSS</code> and <code>Elapsed</code>, then tune. Schedulers penalise over-requesting — your jobs queue longer.</p>
+</div></div>
+</section>
+
+<!-- Containers -->
+<section class="section">
+<div class="section-label" data-zh="容器" data-en="CONTAINERS">容器</div>
+<h2 data-zh="容器：把整個分析環境封裝成一個檔" data-en="Containers: pack the entire env into one file">容器：把整個分析環境封裝成一個檔</h2>
+<div data-lang="zh">
+<p>conda 解決「軟體版本」問題；容器解決「整個 OS + 系統函式庫 + 軟體」問題。在科研重現性上，容器是金本位：你今天打包的 BWA + samtools，5 年後在另一台機器上還是<strong>逐位相同</strong>。</p>
+</div>
+<div data-lang="en">
+<p>conda solves "software version"; containers solve "entire OS + system libraries + software". For scientific reproducibility, containers are the gold standard — the BWA + samtools you bundle today is <strong>bit-for-bit identical</strong> 5 years later, on any machine.</p>
+</div>
+<table class="comp-table">
+<thead><tr><th>Tool</th><th data-zh="場景" data-en="Use case">場景</th><th data-zh="關鍵特性" data-en="Key">關鍵特性</th></tr></thead>
+<tbody>
+<tr><td><strong>Docker</strong></td><td data-zh="筆電/個人開發；雲端" data-en="Laptop / personal dev; cloud">筆電 / 雲端</td><td data-zh="生態最豐富，需 root；HPC 上很少直接用" data-en="Richest ecosystem, but needs root — rarely used on HPC directly">需 root，HPC 不友善</td></tr>
+<tr><td><strong>Apptainer / Singularity</strong></td><td data-zh="HPC 標準" data-en="HPC standard">HPC 標準</td><td data-zh="不需 root、單一 .sif 檔、可直接跑 docker image" data-en="Rootless, single .sif file, can run any Docker image">不需 root、可跑 docker image</td></tr>
+<tr><td><strong>BioContainers</strong></td><td data-zh="生資工具的官方 docker repository" data-en="Official Docker repo for bioinfo tools">生資工具官方 image</td><td data-zh="與 Bioconda 同步；任何工具都有對應 image" data-en="In sync with Bioconda; every tool has a matching image">與 Bioconda 同步</td></tr>
+</tbody></table>
+
+<h3 data-zh="實戰範例" data-en="Practical examples">實戰範例</h3>
+<div class="code-tabs">
+<div class="code-tab-btns"><button class="code-tab-btn active" onclick="switchTab(this,'c1')">Docker</button><button class="code-tab-btn" onclick="switchTab(this,'c2')">Apptainer</button></div>
+<div class="code-tab-content active" id="c1"><pre><span class="comment"># 從 BioContainers 拉 samtools 1.20 image
+# Pull a BioContainers image</span>
+<span class="func">docker</span> pull quay.io/biocontainers/samtools:1.20--h50ea8bc_0
+
+<span class="comment"># 跑指令（mount 當前目錄到容器內 /data）
+# Run a command (mount $PWD into /data)</span>
+<span class="func">docker</span> run --rm -v $PWD:/data -w /data \
+    quay.io/biocontainers/samtools:1.20--h50ea8bc_0 \
+    samtools flagstat sampleA.bam</pre></div>
+<div class="code-tab-content" id="c2"><pre><span class="comment"># 把 docker image 轉成 .sif（HPC 上常見做法）
+# Convert docker image to .sif (typical HPC workflow)</span>
+<span class="func">apptainer</span> pull samtools.sif \
+    docker://quay.io/biocontainers/samtools:1.20--h50ea8bc_0
+
+<span class="comment"># 跑指令（家目錄會自動 mount 進去）
+# Run a command (your $HOME is auto-mounted)</span>
+<span class="func">apptainer</span> exec samtools.sif samtools flagstat sampleA.bam
+
+<span class="comment"># 在 sbatch script 中使用 / Inside an sbatch script</span>
+<span class="comment">#SBATCH --cpus-per-task=8</span>
+<span class="func">apptainer</span> exec --bind /scratch samtools.sif \
+    samtools sort -@ <span class="num">8</span> in.bam -o out.bam</pre></div>
+</div>
+<div class="callout tip"><span class="callout-icon">💡</span><div>
+<p data-lang="zh"><strong>實務黃金組合：</strong>Snakemake / Nextflow + Apptainer + Slurm。每個 rule / process 跑在一個 container 裡，由 workflow 自動拉 image、Slurm 自動排程資源——這就是現代生資 production pipeline 的標準長相。</p>
+<p data-lang="en"><strong>Production golden combo:</strong> Snakemake / Nextflow + Apptainer + Slurm. Each rule / process runs in its container, the workflow handles image fetch, and Slurm schedules resources — the canonical modern bioinformatics production stack.</p>
+</div></div>
+</section>
+
+<!-- Reproducibility -->
+<section class="section">
+<div class="section-label" data-zh="可重現性" data-en="REPRODUCIBILITY">可重現性</div>
+<h2 data-zh="總結：可重現分析的 5 層保障" data-en="Recap: the 5 layers of reproducible analysis">總結：可重現分析的 5 層保障</h2>
+<div class="workflow">
+  <div class="workflow-step" data-step="1"><h4 data-zh="① 資料層 (raw_data)" data-en="① Data layer (raw_data)">① 資料層 (raw_data)</h4>
+    <p data-lang="zh">md5 / sha256 checksums 確保檔案沒有被悄悄改動或下載損壞。</p>
+    <p data-lang="en">md5 / sha256 checksums prove the files weren't silently changed or corrupted.</p></div>
+  <div class="workflow-step" data-step="2"><h4 data-zh="② 程式碼層 (scripts / workflow)" data-en="② Code layer (scripts / workflow)">② 程式碼層</h4>
+    <p data-lang="zh">放進 git，每個分析 commit 有對應 hash，可追到每行的歷史。</p>
+    <p data-lang="en">Tracked in git — every analysis points to a commit hash with full history.</p></div>
+  <div class="workflow-step" data-step="3"><h4 data-zh="③ 環境層 (environment.yml)" data-en="③ Environment (environment.yml)">③ 環境層</h4>
+    <p data-lang="zh">conda env 描述軟體版本依賴，<code>conda env create -f environment.yml</code> 一鍵重建。</p>
+    <p data-lang="en">Conda env captures software versions; <code>conda env create -f environment.yml</code> rebuilds it.</p></div>
+  <div class="workflow-step" data-step="4"><h4 data-zh="④ 容器層 (Apptainer / Docker)" data-en="④ Container (Apptainer / Docker)">④ 容器層</h4>
+    <p data-lang="zh">把整個 OS + 工具凍結成 <code>.sif</code> 或 image，跨年跨機器都能跑。</p>
+    <p data-lang="en">Freeze the entire OS + tools into a <code>.sif</code> / image — runs identically across years and machines.</p></div>
+  <div class="workflow-step" data-step="5"><h4 data-zh="⑤ 流程層 (Snakemake / Nextflow)" data-en="⑤ Workflow (Snakemake / Nextflow)">⑤ 流程層</h4>
+    <p data-lang="zh">workflow 把 rule、依賴、執行環境綁在一起；他人 clone repo + <code>snakemake --use-singularity</code> 就能完整重跑。</p>
+    <p data-lang="en">The workflow binds rules, dependencies and runtime; collaborators clone the repo and run <code>snakemake --use-singularity</code> to reproduce.</p></div>
+</div>
+</section>
+
+<!-- Hands-on -->
+<section class="section">
+<div class="section-label" data-zh="動手做" data-en="HANDS-ON">動手做</div>
+<h2 data-zh="互動：模擬 Slurm 提交與監控" data-en="Interactive: simulate Slurm submit & monitor">互動：模擬 Slurm 提交與監控</h2>
+<div class="interactive-panel">
+<div data-term-id="t-hpc"></div>
+</div>
+</section>
+
+<!-- Quiz -->
+<section class="quiz-section">
+<h3>📝 <span data-zh="自我檢測" data-en="Self-Check">自我檢測</span></h3>
+<div class="quiz-q" data-answer="2" data-explain-zh="login node 是大家共用的入口，跑 fastp/STAR 會把整台拖死。任何耗資源的工作都應 sbatch 或 srun。" data-explain-en="The login node is shared — heavy work like fastp/STAR will hose it for everyone. Always sbatch or srun.">
+<p data-lang="zh">1. SSH 連到 cluster 後，下面哪一個是<strong>絕對不該</strong>做的？</p>
+<p data-lang="en">1. After SSH-ing to a cluster, which is <strong>absolutely wrong</strong>?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><code>sbatch run_job.sh</code></div>
+<div class="quiz-opt" data-idx="1"><code>squeue -u $USER</code></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">直接在 login node 跑 <code>STAR ... --runThreadN 8</code></span><span data-lang="en">Run <code>STAR ... --runThreadN 8</code> directly on the login node</span></div>
+<div class="quiz-opt" data-idx="3"><code>srun --cpus-per-task=4 bash</code></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="1" data-explain-zh="sbatch 把任務丟到 queue，分配 compute node；srun 是即時要互動 shell；scancel 取消；sinfo 看狀態。" data-explain-en="sbatch queues a batch job and lets the scheduler pick a node; srun gets an interactive node now; scancel cancels; sinfo shows nodes.">
+<p data-lang="zh">2. <code>sbatch</code> 與 <code>srun</code> 的差別？</p>
+<p data-lang="en">2. Difference between <code>sbatch</code> and <code>srun</code>?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 兩個一樣</span><span data-lang="en">A. They're identical</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. sbatch 把 script 放進隊列；srun 即時拿節點互動執行</span><span data-lang="en">B. sbatch queues a script; srun grabs a node interactively right now</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. sbatch 用 GPU、srun 用 CPU</span><span data-lang="en">C. sbatch is GPU only; srun is CPU only</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. sbatch 不能用 conda</span><span data-lang="en">D. sbatch can't use conda</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="3" data-explain-zh="Apptainer 不需 root、單一 .sif 檔、能直接跑 docker image，是 HPC 標準容器；Docker 反而很少直接被允許在 HPC 上跑。" data-explain-en="Apptainer is rootless, single-file (.sif), and can run docker images — the HPC standard. Docker is rarely permitted on HPC.">
+<p data-lang="zh">3. 為什麼 HPC 上多用 Apptainer / Singularity 而非 Docker？</p>
+<p data-lang="en">3. Why is Apptainer / Singularity preferred on HPC over Docker?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. Apptainer 比較快</span><span data-lang="en">A. Apptainer is faster</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. Docker 不能在 Linux 上跑</span><span data-lang="en">B. Docker can't run on Linux</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. Apptainer 支援 GPU，Docker 不支援</span><span data-lang="en">C. Apptainer supports GPUs but Docker doesn't</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. Apptainer 不需 root，HPC 安全策略允許；可直接跑 docker image</span><span data-lang="en">D. Apptainer is rootless (HPC-safe) and can run any Docker image</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="0" data-explain-zh="MaxRSS 是任務實際的記憶體峰值，可拿來精準調 --mem，避免下次 over-provision 排隊久。" data-explain-en="MaxRSS is the actual peak memory; use it to tune --mem precisely and avoid long queue times.">
+<p data-lang="zh">4. 想精確調整下次 sbatch 的 <code>--mem</code> 參數，最該看？</p>
+<p data-lang="en">4. To tune <code>--mem</code> for next sbatch, which value matters most?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><code>sacct ... MaxRSS</code></div>
+<div class="quiz-opt" data-idx="1"><code>sinfo</code></div>
+<div class="quiz-opt" data-idx="2"><code>squeue</code></div>
+<div class="quiz-opt" data-idx="3"><code>htop</code> on login node</div>
+</div><div class="quiz-feedback"></div></div>
+</section>
+
+<!-- Closing -->
+<section class="section">
+<div class="section-label" data-zh="結語" data-en="WRAP-UP">結語</div>
+<h2 data-zh="🎉 你完成了 14 章 Linux for Bioinformatics" data-en="🎉 You finished all 14 chapters">🎉 你完成了 14 章 Linux for Bioinformatics</h2>
+<div data-lang="zh">
+<p>從第一個 <code>pwd</code> 到部署到 Slurm + Apptainer + Snakemake，你已經具備：</p>
+<ul>
+<li>整理 NGS 專案、走讀檔案系統、用權限與 symlink 管理大資料</li>
+<li>用 grep / cut / awk / sed 串成 mini pipeline 處理 GTF / BED / VCF</li>
+<li>用 conda 管理可重現環境、跑 FastQC / MultiQC / samtools 標準流程</li>
+<li>把指令包成 Bash script、再升級成 Snakemake / Nextflow workflow</li>
+<li>把 pipeline 部署到 HPC，搭配容器確保跨機器、跨年代的可重現性</li>
+</ul>
+<p>建議下一步：把學到的東西，套用到一個你自己的小型專案——下載一份 SRA 公開資料、寫 environment.yml、跑 FastQC + alignment + flagstat、最後封裝成一個 Snakemake pipeline，存進 git。等你完成這件事，你已經是一位獨立的初階生資工程師了。</p>
+</div>
+<div data-lang="en">
+<p>From your first <code>pwd</code> to deploying on Slurm + Apptainer + Snakemake, you can now:</p>
+<ul>
+<li>Organise NGS projects, navigate the filesystem, and use permissions / symlinks to manage big data.</li>
+<li>Build mini pipelines with grep / cut / awk / sed for GTF / BED / VCF.</li>
+<li>Manage reproducible environments with conda; run FastQC / MultiQC / samtools as standard.</li>
+<li>Wrap commands into Bash scripts, then upgrade to Snakemake / Nextflow workflows.</li>
+<li>Deploy pipelines on HPC with containers — reproducible across machines and years.</li>
+</ul>
+<p>Next step: apply this to a small project of your own — pull a SRA dataset, write an <code>environment.yml</code>, run FastQC + alignment + flagstat, and wrap everything in a Snakemake pipeline tracked in git. Once that's done, you are an independent junior bioinformatician.</p>
+</div>
+<div class="callout tip"><span class="callout-icon">🚀</span><div>
+<p data-lang="zh"><strong>進階方向：</strong>差異表達 (DESeq2 / edgeR) → 多體學整合 → 單細胞 (scRNA-seq) → 雲端原生 (AWS Batch / Terra) → Git + GitHub Actions for analyses。</p>
+<p data-lang="en"><strong>Where to go next:</strong> differential expression (DESeq2 / edgeR) → multi-omics integration → single cell (scRNA-seq) → cloud-native (AWS Batch / Terra) → Git + GitHub Actions for analyses.</p>
+</div></div>
+</section>
+
+<nav class="page-nav">
+  <a href="workflow.html"><span class="nav-dir" data-zh="← 上一章" data-en="← Previous">← 上一章</span><span class="nav-title">Ch 13: Workflow Managers</span></a>
+  <a href="index.html"><span class="nav-dir" data-zh="🎉 完成" data-en="🎉 Finished">🎉 完成</span><span class="nav-title" data-zh="回首頁" data-en="Back to Home">回首頁</span></a>
+</nav>
+</main>
+<footer class="site-footer">© Charlene — Linux for Bioinformatics Interactive Tutorial</footer>
+<script src="i18n.js"></script>
+<script src="common.js"></script>
+<script>
+const JOBS={};
+let nextJob=12345678;
+TermSim.create('t-hpc',{
+  prompt:'student@login01:~$',
+  title:'slurm-sandbox',
+  banner:'Simulated cluster. Try: sinfo / sbatch run_job.sh / squeue / scancel JOB / sacct -j JOB',
+  validate:function(cmd){
+    const c=cmd.trim();
+    if(c==='sinfo'){return {ok:true,out:'PARTITION  AVAIL  TIMELIMIT  NODES  STATE  NODELIST\nnormal*    up     7-00:00:00  120   idle    cn[01-120]\nhighmem    up     3-00:00:00   8    mix     cn[121-128]\ngpu        up     1-00:00:00   16   idle    gpu[01-16]'};}
+    if(c==='cat run_job.sh'){return {ok:true,out:'#!/usr/bin/env bash\n#SBATCH --job-name=fastqc\n#SBATCH --partition=normal\n#SBATCH --cpus-per-task=8\n#SBATCH --mem=16G\n#SBATCH --time=04:00:00\n#SBATCH --output=logs/fastqc_%j.out\n#SBATCH --error=logs/fastqc_%j.err\nset -euo pipefail\nsource ~/miniconda3/etc/profile.d/conda.sh\nconda activate rnaseq\nbash scripts/run_qc.sh'};}
+    if(c==='sbatch run_job.sh'){const id=nextJob++;JOBS[id]={state:'PENDING',mem:'14G',cpu:8,start:Date.now()};setTimeout(()=>{if(JOBS[id]&&JOBS[id].state==='PENDING')JOBS[id].state='RUNNING';},3000);setTimeout(()=>{if(JOBS[id])JOBS[id].state='COMPLETED';},10000);return {ok:true,out:'Submitted batch job '+id};}
+    if(c==='squeue -u $USER'||c==='squeue'){const rows=Object.entries(JOBS).map(([id,j])=>id+'  fastqc   student  '+j.state.padEnd(8)+'  '+(j.cpu||'8')+' CPUs  '+(j.mem||'16G')+'  cn07');if(!rows.length)return {ok:true,out:'(no jobs in queue)'};return {ok:true,out:'JOBID    NAME    USER    STATE    CPUS  MEM   NODELIST\n'+rows.join('\n')};}
+    let m;
+    if(m=c.match(/^scancel\s+(\d+)$/)){const id=m[1];if(JOBS[id]){JOBS[id].state='CANCELLED';return {ok:true,out:'Cancelled job '+id};}return {ok:false,err:true,out:'no such job '+id};}
+    if(m=c.match(/^scontrol show job\s+(\d+)$/)){const id=m[1];if(!JOBS[id])return {ok:false,err:true,out:'no such job '+id};return {ok:true,out:'JobId='+id+' JobName=fastqc UserId=student Partition=normal\n   JobState='+JOBS[id].state+' Reason=None Dependency=(null)\n   AllocCPUS=8 ReqMem=16G TimeLimit=04:00:00 RunTime=00:05:12\n   StdOut=/home/student/logs/fastqc_'+id+'.out'};}
+    if(m=c.match(/^sacct -j\s+(\d+)/)){const id=m[1];if(!JOBS[id])return {ok:false,err:true,out:'no such job '+id};return {ok:true,out:'JobID         State      Elapsed   MaxRSS   ReqMem   NCPUS\n'+id+'   COMPLETED  00:08:24  14.20G   16G      8'};}
+    if(c==='ls') return {ok:true,out:'run_job.sh  scripts/  raw_data/  logs/'};
+    if(c==='clear'){document.querySelector('[data-term-id="t-hpc"] .terminal-body').innerHTML='';return {ok:true,out:''};}
+    return {ok:false,err:true,out:'sh: '+c+': try sinfo / sbatch run_job.sh / squeue / scancel <id> / sacct -j <id>'};
+  }
+});
+</script>
+</body></html>

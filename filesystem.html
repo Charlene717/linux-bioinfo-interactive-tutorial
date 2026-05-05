@@ -1,0 +1,297 @@
+<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Ch 2: Terminal & Filesystem — Linux Tutorial</title>
+<link rel="stylesheet" href="styles.css">
+</head><body>
+<nav class="top-nav"><div class="top-nav-inner">
+  <a href="index.html" class="top-nav-brand"><span>🐧</span> <span data-zh="Linux 生資教學" data-en="Linux for Bioinfo">Linux 生資教學</span></a>
+  <ul class="top-nav-links">
+    <li><a href="intro.html">Intro</a></li><li><a href="filesystem.html" class="active">Shell</a></li><li><a href="file-ops.html">Files</a></li><li><a href="text-streams.html">Streams</a></li><li><a href="grep-cut-sort.html">grep/cut</a></li><li><a href="awk-sed.html">awk/sed</a></li><li><a href="download-compress.html">Net/Zip</a></li><li><a href="conda.html">Conda</a></li><li><a href="bio-formats.html">Formats</a></li><li><a href="ngs-qc.html">QC</a></li><li><a href="mapping.html">Mapping</a></li><li><a href="bash-scripting.html">Bash</a></li><li><a href="workflow.html">Workflow</a></li><li><a href="hpc-container.html">HPC</a></li>
+  </ul>
+</div></nav>
+<div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
+<header class="page-hero"><div class="step-badge">CHAPTER 2 / 14</div>
+<h1 data-zh="Terminal、Shell 與檔案系統" data-en="Terminal, Shell & Filesystem">Terminal、Shell 與檔案系統</h1>
+<p class="subtitle" data-lang="zh">理解 terminal 是什麼、shell 在做什麼、Linux 檔案系統如何組織，以及如何用 pwd / cd / ls 在 NGS 專案中走動。</p>
+<p class="subtitle" data-lang="en">Understand what a terminal is, what the shell does, how the Linux filesystem is organised, and how to walk an NGS project tree with pwd / cd / ls.</p>
+</header>
+<main class="content-wrap">
+
+<!-- Section 1 -->
+<section class="section">
+<div class="section-label" data-zh="觀念" data-en="CONCEPT">觀念</div>
+<h2 data-zh="Terminal、Shell、Bash — 它們各自是什麼？" data-en="Terminal, Shell, Bash — what's the difference?">Terminal、Shell、Bash — 它們各自是什麼？</h2>
+<div class="card-grid cols-3">
+  <div class="card"><div class="card-icon">🖥️</div><h4>Terminal</h4>
+    <p data-lang="zh">那個「黑色視窗」程式（Terminal.app、iTerm、GNOME Terminal、Windows Terminal、PuTTY），負責顯示文字與接收鍵盤輸入。它是 <strong>外殼</strong>，不是真正在執行指令的人。</p>
+    <p data-lang="en">The "black window" program (Terminal.app, iTerm, GNOME Terminal, Windows Terminal, PuTTY). It just displays text and receives keystrokes — it's the <strong>shell of the shell</strong>, not the executor.</p></div>
+  <div class="card"><div class="card-icon">🐚</div><h4>Shell</h4>
+    <p data-lang="zh">真正讀懂並執行指令的程式：把你輸入的 <code>ls -lh</code> 解析成「呼叫 /usr/bin/ls，帶 -lh 參數」。常見有 <code>bash</code>、<code>zsh</code>、<code>fish</code>。</p>
+    <p data-lang="en">The actual program that parses and runs your commands: it turns <code>ls -lh</code> into "call /usr/bin/ls with -lh". Common shells: <code>bash</code>, <code>zsh</code>, <code>fish</code>.</p></div>
+  <div class="card"><div class="card-icon">💬</div><h4>Bash</h4>
+    <p data-lang="zh">最普及的 shell，幾乎所有 Linux 教程預設都用 bash。本課程的所有腳本都用 bash 撰寫。</p>
+    <p data-lang="en">The most widespread shell — every Linux tutorial defaults to bash. All scripts in this course are written in bash.</p></div>
+</div>
+<div class="callout tip"><span class="callout-icon">💡</span><div>
+<p data-lang="zh">想知道你現在用哪個 shell？輸入 <code>echo $SHELL</code> 或 <code>ps -p $$</code>。如果輸出是 <code>/bin/bash</code> 或 <code>/usr/bin/bash</code>，你就在 bash 裡。</p>
+<p data-lang="en">Wondering which shell you're in? Run <code>echo $SHELL</code> or <code>ps -p $$</code>. If you see <code>/bin/bash</code> or <code>/usr/bin/bash</code>, you're in bash.</p>
+</div></div>
+</section>
+
+<!-- Section 2: Filesystem hierarchy -->
+<section class="section">
+<div class="section-label" data-zh="檔案系統" data-en="FILESYSTEM">檔案系統</div>
+<h2 data-zh="Linux 檔案系統的全貌" data-en="The big picture of the Linux filesystem">Linux 檔案系統的全貌</h2>
+<div data-lang="zh"><p>Linux 的所有東西都掛在一棵「<strong>單一根目錄樹</strong>」上，最頂端是 <code>/</code>（不是 C: D: 那種磁碟代號）。常見路徑如下：</p></div>
+<div data-lang="en"><p>Everything in Linux hangs from a single root tree starting at <code>/</code> (no C:, D: drive letters). Common paths:</p></div>
+<pre class="fs-tree"><span class="dir">/</span>                       <span data-zh="# 根目錄" data-en="# Root">＃ 根目錄</span>
+├── <span class="dir">home/</span>                <span data-zh="# 一般使用者家目錄都在這" data-en="# All user home directories live here">＃ 一般使用者家目錄都在這</span>
+│   └── <span class="dir">charlene/</span>        <span data-zh="# 你的家目錄 = ~ = $HOME" data-en="# Your home = ~ = $HOME">＃ 你的家目錄 = ~ = $HOME</span>
+│       └── <span class="dir">project/</span>     <span data-zh="# 工作中的 NGS 專案" data-en="# Your working NGS project">＃ 工作中的 NGS 專案</span>
+├── <span class="dir">usr/bin/</span>             <span data-zh="# 安裝的指令會在這 (ls, samtools …)" data-en="# Installed commands live here (ls, samtools …)">＃ 安裝的指令會在這 (ls, samtools …)</span>
+├── <span class="dir">etc/</span>                 <span data-zh="# 系統設定檔" data-en="# System configs">＃ 系統設定檔</span>
+├── <span class="dir">tmp/</span>                 <span data-zh="# 臨時檔，重開機會清空" data-en="# Temp files, cleared on reboot">＃ 臨時檔，重開機會清空</span>
+├── <span class="dir">opt/</span> <span class="dir">data/</span>            <span data-zh="# 自行掛載的大型儲存常放這" data-en="# Custom-mounted big storage often goes here">＃ 自行掛載的大型儲存常放這</span>
+└── <span class="dir">mnt/</span>                 <span data-zh="# 暫掛 USB / 網路硬碟" data-en="# USB / network drive mount points">＃ 暫掛 USB / 網路硬碟</span>
+</pre>
+<div class="callout warn"><span class="callout-icon">⚠️</span><div>
+<p data-lang="zh">在 HPC 或實驗室伺服器上，重要 NGS 資料常放在 <code>/data</code>、<code>/scratch</code>、<code>/work</code>、<code>/home</code>、<code>/share</code> 等不同位置。配額（quota）、I/O 速度、備份政策都不一樣，記得先問你的系統管理員。</p>
+<p data-lang="en">On HPC or lab servers, NGS data may live in <code>/data</code>, <code>/scratch</code>, <code>/work</code>, <code>/home</code>, <code>/share</code> — each with different quotas, I/O speed and backup policies. Ask your sysadmin first.</p>
+</div></div>
+</section>
+
+<!-- Section 3: Path -->
+<section class="section">
+<div class="section-label" data-zh="核心" data-en="CORE">核心</div>
+<h2 data-zh="絕對路徑 vs 相對路徑" data-en="Absolute vs Relative Paths">絕對路徑 vs 相對路徑</h2>
+<table class="comp-table">
+<thead><tr><th data-zh="路徑類型" data-en="Path type">路徑類型</th><th data-zh="特徵" data-en="Pattern">特徵</th><th data-zh="範例" data-en="Example">範例</th></tr></thead>
+<tbody>
+<tr><td><strong data-zh="絕對路徑" data-en="Absolute">絕對路徑</strong></td>
+    <td data-zh="一定以 / 開頭，從根目錄開始描述" data-en="Always starts with /, from the root">一定以 / 開頭</td>
+    <td><code>/home/charlene/project/raw_data/sampleA_R1.fastq.gz</code></td></tr>
+<tr><td><strong data-zh="相對路徑" data-en="Relative">相對路徑</strong></td>
+    <td data-zh="從目前所在資料夾出發" data-en="From the current directory">不以 / 開頭</td>
+    <td><code>raw_data/sampleA_R1.fastq.gz</code></td></tr>
+<tr><td><code>~</code></td>
+    <td data-zh="自己的 home 目錄" data-en="Your home directory">自己的 home 目錄</td>
+    <td><code>~/project/raw_data</code></td></tr>
+<tr><td><code>.</code></td><td data-zh="目前資料夾" data-en="Current directory">目前資料夾</td><td><code>./run_fastqc.sh</code></td></tr>
+<tr><td><code>..</code></td><td data-zh="上一層資料夾" data-en="Parent directory">上一層資料夾</td><td><code>cd ../reference</code></td></tr>
+</tbody></table>
+<div class="callout tip"><span class="callout-icon">💡</span><div>
+<p data-lang="zh"><strong>實務原則：</strong>寫 script、log、README 時建議用<strong>絕對路徑</strong>，避免「在不同資料夾下執行就會壞掉」；互動操作時則用相對路徑比較快。</p>
+<p data-lang="en"><strong>Rule of thumb:</strong> use <strong>absolute paths</strong> in scripts, logs and README files — they survive being run from any directory. Use relative paths for fast interactive work.</p>
+</div></div>
+</section>
+
+<!-- Section 4: Cheat sheet -->
+<section class="section">
+<div class="section-label" data-zh="速查表" data-en="CHEAT SHEET">速查表</div>
+<h2 data-zh="導航三劍客：pwd / cd / ls" data-en="Navigation trio: pwd / cd / ls">導航三劍客：pwd / cd / ls</h2>
+<div class="cheat">
+<div class="cheat-cmd">pwd</div><div class="cheat-desc" data-zh="顯示目前所在資料夾的絕對路徑" data-en="Print the absolute path of the current directory">顯示目前所在資料夾的絕對路徑</div>
+<div class="cheat-cmd">cd /path/to/dir</div><div class="cheat-desc" data-zh="切換到指定資料夾" data-en="Change to the specified directory">切換到指定資料夾</div>
+<div class="cheat-cmd">cd ~</div><div class="cheat-desc" data-zh="回到家目錄（$HOME）" data-en="Go to your home directory ($HOME)">回到家目錄（$HOME）</div>
+<div class="cheat-cmd">cd -</div><div class="cheat-desc" data-zh="回到上一個切換前的資料夾" data-en="Switch back to the previous directory">回到上一個切換前的資料夾</div>
+<div class="cheat-cmd">cd ..</div><div class="cheat-desc" data-zh="上一層" data-en="Up one level">上一層</div>
+<div class="cheat-cmd">ls</div><div class="cheat-desc" data-zh="列出目前資料夾的內容（不含隱藏檔）" data-en="List the current directory (no hidden files)">列出目前資料夾的內容</div>
+<div class="cheat-cmd">ls -l</div><div class="cheat-desc" data-zh="長格式：權限、擁有者、大小、修改時間" data-en="Long format: permissions, owner, size, mtime">長格式</div>
+<div class="cheat-cmd">ls -lh</div><div class="cheat-desc" data-zh="長格式 + 人類可讀大小（K/M/G）" data-en="Long + human-readable sizes (K/M/G)">長格式 + 人類可讀大小</div>
+<div class="cheat-cmd">ls -a</div><div class="cheat-desc" data-zh="顯示隱藏檔（名稱以 . 開頭）" data-en="Show hidden files (names starting with .)">顯示隱藏檔</div>
+<div class="cheat-cmd">ls -ltr</div><div class="cheat-desc" data-zh="按時間排序，最新在最後（找剛產出的檔案超好用）" data-en="Sort by time, newest last — perfect for finding fresh outputs">按時間排序，最新在最後</div>
+<div class="cheat-cmd">ls raw_data/*.fastq.gz</div><div class="cheat-desc" data-zh="只列出 raw_data 中的 fastq.gz 檔" data-en="List only fastq.gz files in raw_data">只列出 fastq.gz 檔</div>
+<div class="cheat-cmd">tree -L 2</div><div class="cheat-desc" data-zh="樹狀顯示資料夾（最多 2 層）" data-en="Tree view, up to 2 levels deep">樹狀顯示資料夾</div>
+</div>
+</section>
+
+<!-- Section 5: Tab key -->
+<section class="section">
+<div class="section-label" data-zh="效率" data-en="EFFICIENCY">效率</div>
+<h2 data-zh="一個 Linux 必學的鍵：Tab" data-en="The one key every Linuxer must master: Tab">一個 Linux 必學的鍵：<span class="kbd">Tab</span></h2>
+<div data-lang="zh">
+<p><strong>Tab 自動補全</strong>是 Linux 上最重要的省時技巧。輸入指令或檔名前幾個字，按一下 <span class="kbd">Tab</span>，shell 會幫你補完到唯一可能的選項；按兩下會列出所有可能的選項。</p>
+<ul>
+  <li>輸入 <code>cd raw_d</code> → 按 <span class="kbd">Tab</span> → 自動變成 <code>cd raw_data/</code></li>
+  <li>輸入 <code>ls samp</code> → 按 <span class="kbd">Tab</span> <span class="kbd">Tab</span> → 列出 sampleA、sampleB...</li>
+  <li>檔名超長（如 <code>SRR12345678_1.fastq.gz</code>），Tab 補全可避免打錯字</li>
+</ul>
+</div>
+<div data-lang="en">
+<p><strong>Tab completion</strong> is the single most important time-saver in Linux. Type a few characters and press <span class="kbd">Tab</span> — the shell completes the unique match; press it twice to list candidates.</p>
+<ul>
+  <li>Type <code>cd raw_d</code> → <span class="kbd">Tab</span> → becomes <code>cd raw_data/</code></li>
+  <li>Type <code>ls samp</code> → <span class="kbd">Tab</span> <span class="kbd">Tab</span> → lists sampleA, sampleB…</li>
+  <li>For long filenames like <code>SRR12345678_1.fastq.gz</code>, Tab eliminates typos.</li>
+</ul>
+</div>
+<div class="card-grid cols-2">
+  <div class="card"><h4>↑ ↓ <span data-zh="歷史紀錄" data-en="History">歷史紀錄</span></h4>
+    <p data-lang="zh">按 ↑/↓ 翻閱之前輸入過的指令；按 <code>Ctrl+R</code> 反向搜尋（輸入幾個字就能找到一週前打過的命令）。</p>
+    <p data-lang="en">Press ↑/↓ to scroll through earlier commands; <code>Ctrl+R</code> reverse-search lets you find a command from last week with a few keystrokes.</p></div>
+  <div class="card"><h4>Ctrl + C / D / L / U</h4>
+    <p data-lang="zh"><code>Ctrl+C</code>=中斷指令，<code>Ctrl+D</code>=結束輸入/登出，<code>Ctrl+L</code>=清螢幕（同 <code>clear</code>），<code>Ctrl+U</code>=清掉整行輸入。</p>
+    <p data-lang="en"><code>Ctrl+C</code>=interrupt, <code>Ctrl+D</code>=EOF/logout, <code>Ctrl+L</code>=clear screen (= <code>clear</code>), <code>Ctrl+U</code>=clear current input line.</p></div>
+</div>
+</section>
+
+<!-- Section 6: Interactive terminal -->
+<section class="section">
+<div class="section-label" data-zh="互動練習" data-en="HANDS-ON">互動練習</div>
+<h2 data-zh="動手練習：在 NGS 專案中走動" data-en="Hands-on: navigate an NGS project">動手練習：在 NGS 專案中走動</h2>
+<div data-lang="zh"><p>下方終端機已預先載入一個 NGS 專案。試著完成以下任務：</p>
+<ol>
+<li>輸入 <code>pwd</code> 看看目前在哪</li>
+<li>輸入 <code>ls</code> 看看現在資料夾有什麼</li>
+<li>輸入 <code>cd raw_data</code> 進入 raw_data</li>
+<li>再 <code>ls -lh</code> 看詳細列表</li>
+<li><code>cd ..</code> 回上層；<code>cd ~</code> 回家目錄</li>
+</ol></div>
+<div data-lang="en"><p>The simulator below has a pre-loaded NGS project. Try:</p>
+<ol>
+<li><code>pwd</code> to see where you are</li>
+<li><code>ls</code> to see what's around</li>
+<li><code>cd raw_data</code> to enter raw_data</li>
+<li><code>ls -lh</code> for the detailed listing</li>
+<li><code>cd ..</code> to go up; <code>cd ~</code> to go home</li>
+</ol></div>
+<div class="interactive-panel">
+<div data-term-id="t-fs"></div>
+</div>
+</section>
+
+<!-- Section 7: Quiz -->
+<section class="quiz-section">
+<h3>📝 <span data-zh="自我檢測" data-en="Self-Check">自我檢測</span></h3>
+<div class="quiz-q" data-answer="2" data-explain-zh="絕對路徑一定從 / 開頭，從根目錄出發。" data-explain-en="An absolute path always starts with / — from the root.">
+<p data-lang="zh">1. 下列哪一個是絕對路徑？</p><p data-lang="en">1. Which is an absolute path?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><code>raw_data/sampleA.fastq.gz</code></div>
+<div class="quiz-opt" data-idx="1"><code>../reference/genome.fa</code></div>
+<div class="quiz-opt" data-idx="2"><code>/home/charlene/project/raw_data/sampleA.fastq.gz</code></div>
+<div class="quiz-opt" data-idx="3"><code>~/project/raw_data</code></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="1" data-explain-zh="cd .. 進入上一層；cd / 會跳到根目錄；cd 不帶參數會回家目錄。" data-explain-en="cd .. goes up one level; cd / jumps to root; bare cd goes home.">
+<p data-lang="zh">2. 想從 <code>~/project/raw_data</code> 跳到 <code>~/project</code>，應該下哪個指令？</p>
+<p data-lang="en">2. From <code>~/project/raw_data</code>, which command moves you to <code>~/project</code>?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><code>cd /</code></div>
+<div class="quiz-opt" data-idx="1"><code>cd ..</code></div>
+<div class="quiz-opt" data-idx="2"><code>cd ~</code></div>
+<div class="quiz-opt" data-idx="3"><code>cd ../..</code></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="3" data-explain-zh="ls -lh 顯示長格式 + 人類可讀大小，是查看檔案大小最常用的組合。" data-explain-en="ls -lh shows long format with human-readable sizes — the everyday combo for inspecting files.">
+<p data-lang="zh">3. 想看 raw_data 裡每個 fastq.gz 的檔案大小（顯示為 KB/MB/GB），最直接的指令是？</p>
+<p data-lang="en">3. To see each fastq.gz size in raw_data (in KB/MB/GB), the most direct command is?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><code>ls raw_data</code></div>
+<div class="quiz-opt" data-idx="1"><code>ls -a raw_data</code></div>
+<div class="quiz-opt" data-idx="2"><code>du raw_data</code></div>
+<div class="quiz-opt" data-idx="3"><code>ls -lh raw_data</code></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="0" data-explain-zh="Tab 補全是 Linux 最重要的省時技巧，能避免打錯長檔名。" data-explain-en="Tab completion is the most important Linux time-saver — it avoids typos on long filenames.">
+<p data-lang="zh">4. 為什麼老手都狂按 Tab？</p><p data-lang="en">4. Why do experienced users hammer Tab?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 自動補全檔名與指令，避免打錯字</span><span data-lang="en">A. Autocompletes commands/filenames, prevents typos</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. 取消正在執行的指令</span><span data-lang="en">B. Cancels a running command</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. 翻閱歷史紀錄</span><span data-lang="en">C. Scrolls history</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 縮排程式碼</span><span data-lang="en">D. Indents code</span></div>
+</div><div class="quiz-feedback"></div></div>
+</section>
+
+<nav class="page-nav">
+  <a href="intro.html"><span class="nav-dir" data-zh="← 上一章" data-en="← Previous">← 上一章</span><span class="nav-title">Ch 1: Why Linux?</span></a>
+  <a href="file-ops.html"><span class="nav-dir" data-zh="下一章 →" data-en="Next →">下一章 →</span><span class="nav-title">Ch 3: File Ops & Permissions</span></a>
+</nav>
+</main>
+<footer class="site-footer">© Charlene — Linux for Bioinformatics Interactive Tutorial</footer>
+<script src="i18n.js"></script>
+<script src="common.js"></script>
+<script>
+// Simulated filesystem for navigation
+const FS={
+  '/home/student':{dirs:['project'],files:['README.md']},
+  '/home/student/project':{dirs:['raw_data','metadata','reference','scripts','results','logs'],files:['README.md']},
+  '/home/student/project/raw_data':{dirs:[],files:['sampleA_R1.fastq.gz','sampleA_R2.fastq.gz','sampleB_R1.fastq.gz','sampleB_R2.fastq.gz']},
+  '/home/student/project/metadata':{dirs:[],files:['samples.tsv']},
+  '/home/student/project/reference':{dirs:[],files:['genome.fa','genes.gtf']},
+  '/home/student/project/scripts':{dirs:[],files:['run_fastqc.sh']},
+  '/home/student/project/results':{dirs:['fastqc'],files:[]},
+  '/home/student/project/results/fastqc':{dirs:[],files:[]},
+  '/home/student/project/logs':{dirs:[],files:[]},
+};
+const SIZES={'sampleA_R1.fastq.gz':'1.2G','sampleA_R2.fastq.gz':'1.2G','sampleB_R1.fastq.gz':'980M','sampleB_R2.fastq.gz':'970M','genome.fa':'3.0G','genes.gtf':'45M','samples.tsv':'412','README.md':'1.1K','run_fastqc.sh':'380'};
+let cwd='/home/student/project', prev='/home/student/project';
+function resolve(p){
+  if(!p) return cwd;
+  if(p==='~'||p==='~/') return '/home/student';
+  if(p.startsWith('~/')) return '/home/student/'+p.slice(2);
+  if(p==='-') return prev;
+  if(p.startsWith('/')) return p.replace(/\/$/,'')||'/';
+  // relative
+  const parts=(cwd+'/'+p).split('/');
+  const out=[];
+  parts.forEach(s=>{if(s===''||s==='.')return; if(s==='..'){out.pop();return;} out.push(s);});
+  return '/'+out.join('/');
+}
+function listing(path,opts){
+  opts=opts||{};
+  const node=FS[path];
+  if(!node) return null;
+  let items=[];
+  node.dirs.forEach(d=>items.push({name:d,isDir:true}));
+  node.files.forEach(f=>items.push({name:f,isDir:false}));
+  if(opts.long){
+    const lines=items.map(it=>{
+      const perm=it.isDir?'drwxr-xr-x':'-rw-r--r--';
+      const sz=it.isDir?'4096':(SIZES[it.name]||'2048');
+      return perm+'  charlene  '+sz.padStart(8)+'  May  2 10:00  '+(it.isDir?it.name+'/':it.name);
+    });
+    return lines.join('\n');
+  }
+  return items.map(it=>it.isDir?it.name+'/':it.name).join('  ');
+}
+TermSim.create('t-fs',{
+  prompt:'student@bio:~/project$',
+  title:'navigate-ngs-project',
+  banner:'Pre-loaded NGS project at ~/project. Try: pwd / ls / cd raw_data / ls -lh / cd ..',
+  validate:function(cmd){
+    const c=cmd.trim();
+    const term=document.querySelector('[data-term-id="t-fs"]');
+    function setPrompt(){
+      const display=cwd.replace('/home/student','~');
+      term.querySelector('.terminal-input-row .prompt').textContent='student@bio:'+display+'$';
+    }
+    if(c==='pwd') return {ok:true,out:cwd};
+    if(c==='whoami') return {ok:true,out:'student'};
+    if(c==='ls'){ const o=listing(cwd); return o!==null?{ok:true,out:o||'(empty)'}:{ok:false,err:true,out:'ls: cannot access: No such directory'};}
+    if(c.startsWith('ls -lh')||c.startsWith('ls -l')){
+      const target=c.split(/\s+/).slice(2).filter(x=>!x.startsWith('-'))[0];
+      const path=target?resolve(target):cwd;
+      const o=listing(path,{long:true});
+      return o!==null?{ok:true,out:o||'(empty)'}:{ok:false,err:true,out:'ls: '+target+': No such file or directory'};
+    }
+    if(c.startsWith('ls ')){
+      const target=c.split(/\s+/)[1];
+      const path=resolve(target);
+      const o=listing(path);
+      return o!==null?{ok:true,out:o||'(empty)'}:{ok:false,err:true,out:'ls: '+target+': No such file or directory'};
+    }
+    if(c==='cd'){ prev=cwd; cwd='/home/student'; setPrompt(); return {ok:true,out:''};}
+    if(c.startsWith('cd ')){
+      const target=c.slice(3).trim();
+      const path=resolve(target);
+      if(FS[path]){ prev=cwd; cwd=path; setPrompt(); return {ok:true,out:''};}
+      return {ok:false,err:true,out:'cd: '+target+': No such directory'};
+    }
+    if(c==='clear'||c==='cls'){ term.querySelector('.terminal-body').innerHTML=''; return {ok:true,out:''};}
+    if(c==='echo $SHELL') return {ok:true,out:'/bin/bash'};
+    if(c==='echo $HOME')  return {ok:true,out:'/home/student'};
+    if(c==='tree'||c.startsWith('tree')) return {ok:true,out:'project\n├── raw_data\n│   ├── sampleA_R1.fastq.gz\n│   ├── sampleA_R2.fastq.gz\n│   ├── sampleB_R1.fastq.gz\n│   └── sampleB_R2.fastq.gz\n├── metadata\n│   └── samples.tsv\n├── reference\n│   ├── genome.fa\n│   └── genes.gtf\n├── scripts\n│   └── run_fastqc.sh\n├── results\n├── logs\n└── README.md'};
+    return {ok:false,err:true,out:'sh: '+c+': command not found  — supported: pwd, ls, ls -lh, cd, tree, clear'};
+  }
+});
+</script>
+</body></html>

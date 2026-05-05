@@ -1,0 +1,293 @@
+<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Ch 3: File Ops & Permissions — Linux Tutorial</title>
+<link rel="stylesheet" href="styles.css">
+</head><body>
+<nav class="top-nav"><div class="top-nav-inner">
+  <a href="index.html" class="top-nav-brand"><span>🐧</span> <span data-zh="Linux 生資教學" data-en="Linux for Bioinfo">Linux 生資教學</span></a>
+  <ul class="top-nav-links">
+    <li><a href="intro.html">Intro</a></li><li><a href="filesystem.html">Shell</a></li><li><a href="file-ops.html" class="active">Files</a></li><li><a href="text-streams.html">Streams</a></li><li><a href="grep-cut-sort.html">grep/cut</a></li><li><a href="awk-sed.html">awk/sed</a></li><li><a href="download-compress.html">Net/Zip</a></li><li><a href="conda.html">Conda</a></li><li><a href="bio-formats.html">Formats</a></li><li><a href="ngs-qc.html">QC</a></li><li><a href="mapping.html">Mapping</a></li><li><a href="bash-scripting.html">Bash</a></li><li><a href="workflow.html">Workflow</a></li><li><a href="hpc-container.html">HPC</a></li>
+  </ul>
+</div></nav>
+<div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
+<header class="page-hero"><div class="step-badge">CHAPTER 3 / 14</div>
+<h1 data-zh="檔案操作與權限" data-en="File Operations & Permissions">檔案操作與權限</h1>
+<p class="subtitle" data-lang="zh">cp、mv、rm、mkdir、touch、chmod、ln — 安全管理 raw data、reference 與 results。</p>
+<p class="subtitle" data-lang="en">cp, mv, rm, mkdir, touch, chmod, ln — safely manage raw data, references and results.</p>
+</header>
+<main class="content-wrap">
+
+<!-- Section 1 -->
+<section class="section">
+<div class="section-label" data-zh="速查表" data-en="CHEAT SHEET">速查表</div>
+<h2 data-zh="檔案管理基本指令" data-en="Core file-management commands">檔案管理基本指令</h2>
+<div class="cheat">
+<div class="cheat-cmd">mkdir results</div><div class="cheat-desc" data-zh="新建資料夾" data-en="Create directory">新建資料夾</div>
+<div class="cheat-cmd">mkdir -p results/fastqc/sampleA</div><div class="cheat-desc" data-zh="一次建立多層資料夾，已存在不報錯" data-en="Create nested dirs in one go; no error if exists">一次建立多層資料夾</div>
+<div class="cheat-cmd">touch sample.txt</div><div class="cheat-desc" data-zh="建立空檔案 / 更新時間戳" data-en="Create empty file / update timestamp">建立空檔案</div>
+<div class="cheat-cmd">cp src.fq backup/</div><div class="cheat-desc" data-zh="複製檔案到 backup/ 資料夾" data-en="Copy file into backup/ directory">複製檔案</div>
+<div class="cheat-cmd">cp -r reference/ ../bk/</div><div class="cheat-desc" data-zh="-r：遞迴複製整個資料夾" data-en="-r: recursive copy of a directory">遞迴複製資料夾</div>
+<div class="cheat-cmd">cp -p file results/</div><div class="cheat-desc" data-zh="-p：保留時間戳與權限" data-en="-p: preserve timestamps and permissions">保留時間戳與權限</div>
+<div class="cheat-cmd">mv old.fq new.fq</div><div class="cheat-desc" data-zh="改檔名 / 搬移（同一指令）" data-en="Rename / move (same command)">改檔名或搬移</div>
+<div class="cheat-cmd">rm tmp.txt</div><div class="cheat-desc" data-zh="刪除檔案（不會進回收桶！）" data-en="Delete file — there is no trash can!">刪除檔案</div>
+<div class="cheat-cmd">rm -r results_old/</div><div class="cheat-desc" data-zh="-r：遞迴刪除整個資料夾（危險）" data-en="-r: recursively delete a directory (dangerous)">遞迴刪除資料夾</div>
+<div class="cheat-cmd">rm -i *.bam</div><div class="cheat-desc" data-zh="-i：每個刪除前都會問你，新手建議加上" data-en="-i: prompt for each file — use this when learning">刪除前先確認</div>
+<div class="cheat-cmd">ln -s /data/genome.fa .</div><div class="cheat-desc" data-zh="建立 symbolic link（不複製檔案，省空間）" data-en="Symbolic link — saves disk space, no copy">建立 symbolic link</div>
+<div class="cheat-cmd">find . -name "*.bam"</div><div class="cheat-desc" data-zh="找所有 .bam 檔" data-en="Find all .bam files">找特定副檔名檔案</div>
+</div>
+</section>
+
+<!-- Section 2: rm warning -->
+<section class="section">
+<div class="section-label" data-zh="生死攸關" data-en="DANGER ZONE">生死攸關</div>
+<h2 data-zh="關於 rm — 沒有回收桶這件事" data-en="rm — there is no recycle bin">關於 rm — 沒有回收桶這件事</h2>
+<div class="callout danger"><span class="callout-icon">☠️</span><div>
+<p data-lang="zh">Linux 的 <code>rm</code> 是<strong>真的刪除</strong>，不會進垃圾桶、無法 Ctrl+Z、無法復原。再加上 <code>rm -rf</code> 與 wildcard 的組合，是無數 PhD 一夜回到解放前的元兇。</p>
+<p data-lang="en"><code>rm</code> on Linux is a <strong>real delete</strong> — no recycle bin, no Ctrl+Z, no undo. Combined with <code>rm -rf</code> + wildcards, it has destroyed countless PhD theses overnight.</p>
+</div></div>
+<div class="card-grid cols-2">
+  <div class="card"><h4>❌ <span data-zh="非常危險" data-en="Extremely dangerous">非常危險</span></h4>
+    <pre class="cmd-line">rm -rf /</pre>
+    <p data-lang="zh"><strong>絕對不要</strong>輸入此指令——這會嘗試刪除整個系統。</p>
+    <p data-lang="en"><strong>Never</strong> run this — it tries to wipe the whole system.</p>
+    <pre class="cmd-line">rm -rf $undefined_var/</pre>
+    <p data-lang="zh">如果變數沒定義，這會展開成 <code>rm -rf /</code>。寫 script 時務必 <code>set -u</code>。</p>
+    <p data-lang="en">If the variable is undefined, this expands to <code>rm -rf /</code>. Always <code>set -u</code> in scripts.</p></div>
+  <div class="card"><h4>✅ <span data-zh="安全做法" data-en="Safe practices">安全做法</span></h4>
+    <p data-lang="zh">① raw_data/ 設為唯讀：<code>chmod -R a-w raw_data/</code><br>
+       ② 養成先 <code>ls</code> 再 <code>rm</code> 的習慣<br>
+       ③ 互動使用建議 <code>alias rm='rm -i'</code><br>
+       ④ 重要時刻用 <code>mv</code> 改名為 <code>.trash/</code> 而不是直接 rm<br>
+       ⑤ 寫 script 時：<code>set -euo pipefail</code></p>
+    <p data-lang="en">① Mark raw_data/ read-only: <code>chmod -R a-w raw_data/</code><br>
+       ② Habit: <code>ls</code> then <code>rm</code><br>
+       ③ Interactively: <code>alias rm='rm -i'</code><br>
+       ④ Critical files: <code>mv</code> to <code>.trash/</code> instead of <code>rm</code><br>
+       ⑤ In scripts: <code>set -euo pipefail</code></p></div>
+</div>
+</section>
+
+<!-- Section 3: Wildcards -->
+<section class="section">
+<div class="section-label" data-zh="威力倍增" data-en="POWER">威力倍增</div>
+<h2 data-zh="Wildcards — 用 *、?、{} 一次處理多個檔" data-en="Wildcards — handle many files at once with *, ?, {}">Wildcards — 用 *、?、{} 一次處理多個檔</h2>
+<div class="flag-glossary">
+  <div class="flag-item"><code>*</code><p data-lang="zh">匹配 0 個或多個任意字元。<code>*.fastq.gz</code> 匹配所有 fastq.gz 檔。</p><p data-lang="en">Match 0 or more characters. <code>*.fastq.gz</code> matches every fastq.gz file.</p></div>
+  <div class="flag-item"><code>?</code><p data-lang="zh">匹配恰好 1 個字元。<code>sample?.fastq</code> 匹配 sampleA、sampleB...</p><p data-lang="en">Match exactly 1 character. <code>sample?.fastq</code> matches sampleA, sampleB…</p></div>
+  <div class="flag-item"><code>[ABC]</code><p data-lang="zh">字元集合。<code>sample[AB]_R1.fastq</code> 只匹配 sampleA、sampleB。</p><p data-lang="en">Character class. <code>sample[AB]_R1.fastq</code> matches only sampleA, sampleB.</p></div>
+  <div class="flag-item"><code>{a,b,c}</code><p data-lang="zh">大括號展開。<code>sample{A,B,C}_R1.fq.gz</code> = sampleA_R1.fq.gz sampleB_R1.fq.gz sampleC_R1.fq.gz。</p><p data-lang="en">Brace expansion. <code>sample{A,B,C}_R1.fq.gz</code> = three filenames in one.</p></div>
+  <div class="flag-item"><code>{1..10}</code><p data-lang="zh">數字範圍。<code>sample{1..10}.bam</code> 展開為 sample1.bam ~ sample10.bam。</p><p data-lang="en">Numeric range. <code>sample{1..10}.bam</code> expands to sample1.bam … sample10.bam.</p></div>
+  <div class="flag-item"><code>**</code><p data-lang="zh">啟用 globstar 後（<code>shopt -s globstar</code>），<code>**/*.bam</code> 匹配所有子資料夾。</p><p data-lang="en">With globstar (<code>shopt -s globstar</code>), <code>**/*.bam</code> matches across all subdirectories.</p></div>
+</div>
+<div class="callout tip"><span class="callout-icon">💡</span><div>
+<p data-lang="zh"><strong>實務小技巧：</strong>下危險指令前，先用 <code>echo</code> 預覽 wildcard 會展開成什麼。<br><code>echo rm raw_data/sample*.fastq.gz</code> 顯示「實際會刪哪些」，沒問題再把 echo 拿掉。</p>
+<p data-lang="en"><strong>Pro tip:</strong> Before any dangerous command, preview wildcard expansion with <code>echo</code>:<br><code>echo rm raw_data/sample*.fastq.gz</code> prints what it would delete — drop the <code>echo</code> only when satisfied.</p>
+</div></div>
+</section>
+
+<!-- Section 4: Permissions -->
+<section class="section">
+<div class="section-label" data-zh="權限" data-en="PERMISSIONS">權限</div>
+<h2 data-zh="Linux 權限系統 — 讀懂 -rwxr-xr--" data-en="Linux permissions — reading -rwxr-xr--">Linux 權限系統 — 讀懂 <code>-rwxr-xr--</code></h2>
+<div data-lang="zh"><p>用 <code>ls -l</code> 看到的左邊那串 10 個字元，是檔案的權限。前 1 個是檔案類型（<code>-</code>=檔案、<code>d</code>=目錄、<code>l</code>=symlink），後面 9 個分為三組：</p></div>
+<div data-lang="en"><p>The 10-character string on the left of <code>ls -l</code> encodes permissions. The first character is the type (<code>-</code>=file, <code>d</code>=directory, <code>l</code>=symlink); the remaining 9 split into three groups:</p></div>
+<table class="comp-table">
+<thead><tr><th data-zh="位置" data-en="Position">位置</th><th data-zh="角色" data-en="Role">角色</th><th data-zh="字元" data-en="Letters">字元</th><th data-zh="意義" data-en="Meaning">意義</th></tr></thead>
+<tbody>
+<tr><td>2-4</td><td><strong data-zh="擁有者 (user)" data-en="Owner (user)">擁有者 (user)</strong></td><td><code>rwx</code></td><td data-zh="可讀、可寫、可執行" data-en="read, write, execute">可讀、可寫、可執行</td></tr>
+<tr><td>5-7</td><td><strong data-zh="群組 (group)" data-en="Group">群組 (group)</strong></td><td><code>r-x</code></td><td data-zh="可讀、可執行，但不可寫" data-en="read, execute, no write">可讀、可執行，但不可寫</td></tr>
+<tr><td>8-10</td><td><strong data-zh="其他人 (other)" data-en="Other">其他人</strong></td><td><code>r--</code></td><td data-zh="只可讀" data-en="read only">只可讀</td></tr>
+</tbody></table>
+
+<h3 data-zh="chmod 兩種寫法" data-en="Two ways to chmod">chmod 兩種寫法</h3>
+<div class="card-grid cols-2">
+  <div class="card"><h4 data-zh="符號式（直觀）" data-en="Symbolic (intuitive)">符號式（直觀）</h4>
+    <pre class="cmd-line">chmod u+x run.sh</pre>
+    <p data-lang="zh">給 user 加上執行權限（最常見的「讓 script 可執行」）。<code>u/g/o/a</code> = user/group/other/all；<code>+/-/=</code> = 加/減/設定。</p>
+    <p data-lang="en">Give the user execute permission (the canonical "make a script runnable"). <code>u/g/o/a</code> = user/group/other/all; <code>+/-/=</code> = add/remove/set.</p>
+    <pre class="cmd-line">chmod -R a-w raw_data/</pre>
+    <p data-lang="zh">遞迴讓所有人都不能寫入 raw_data — 保護原始資料的標準做法。</p>
+    <p data-lang="en">Recursively remove write for everyone in raw_data — the standard way to protect raw data.</p></div>
+  <div class="card"><h4 data-zh="數字式（精確）" data-en="Numeric (precise)">數字式（精確）</h4>
+    <pre class="cmd-line">chmod 755 run.sh</pre>
+    <p data-lang="zh"><code>r=4, w=2, x=1</code> 相加。<br><code>755</code> = user 7 (rwx), group 5 (r-x), other 5 (r-x)。<br>常見：<br>• <code>755</code> 程式 / 公開資料夾<br>• <code>644</code> 一般檔案<br>• <code>700</code> 私人資料夾</p>
+    <p data-lang="en"><code>r=4, w=2, x=1</code>, summed.<br><code>755</code> = user 7 (rwx), group 5 (r-x), other 5 (r-x).<br>Common modes:<br>• <code>755</code> programs / public dirs<br>• <code>644</code> regular files<br>• <code>700</code> private dirs</p></div>
+</div>
+</section>
+
+<!-- Section 5: Symbolic links -->
+<section class="section">
+<div class="section-label" data-zh="進階" data-en="ADVANCED">進階</div>
+<h2 data-zh="Symbolic Links — 巨大檔案的最佳朋友" data-en="Symbolic Links — best friend of huge files">Symbolic Links — 巨大檔案的最佳朋友</h2>
+<div data-lang="zh">
+<p>NGS reference genome 動輒 3 GB、index 還要 10 GB；多個專案如果都複製一份，硬碟很快爆掉。Symbolic link 像 Windows 的「捷徑」，只佔幾 bytes 就能讓所有專案共用一份檔案。</p>
+<pre class="cmd-line">ln -s /data/reference/hg38/genome.fa  reference/genome.fa</pre>
+<p>現在 <code>reference/genome.fa</code> 看起來像本地檔案，但實際指向 <code>/data/...</code>。在 NGS 流程中是<strong>非常常用</strong>的技巧。</p>
+</div>
+<div data-lang="en">
+<p>An NGS reference genome is easily 3 GB, with another 10 GB of index. Copying a fresh one for every project drains disk fast. Symbolic links are like Windows shortcuts: a few bytes that let many projects share one master file.</p>
+<pre class="cmd-line">ln -s /data/reference/hg38/genome.fa  reference/genome.fa</pre>
+<p><code>reference/genome.fa</code> now behaves like a local file but really points at <code>/data/...</code>. This is a <strong>very common</strong> NGS pattern.</p>
+</div>
+<div class="callout warn"><span class="callout-icon">⚠️</span><div>
+<p data-lang="zh">用 <code>ls -l</code> 會看到 <code>reference/genome.fa -&gt; /data/...</code>。如果原始檔被刪除或移動，連結就失效（dangling link）。複製整個專案時要確認 <code>cp -L</code>（跟著連結走）或保留 symlink。</p>
+<p data-lang="en"><code>ls -l</code> shows <code>reference/genome.fa -&gt; /data/...</code>. If the target is moved or deleted the link dangles. When duplicating projects, decide between <code>cp -L</code> (follow the link) or preserving the symlink.</p>
+</div></div>
+</section>
+
+<!-- Section 6: Interactive -->
+<section class="section">
+<div class="section-label" data-zh="互動練習" data-en="HANDS-ON">互動練習</div>
+<h2 data-zh="任務：建立 NGS 專案骨架" data-en="Task: build the NGS project skeleton">任務：建立 NGS 專案骨架</h2>
+<div data-lang="zh"><p>在下方 terminal 中，依序執行：</p>
+<ol>
+<li><code>mkdir -p project/{raw_data,metadata,reference,scripts,results,logs}</code></li>
+<li><code>cd project</code></li>
+<li><code>touch README.md</code></li>
+<li><code>ls -lh</code></li>
+<li><code>chmod -R a-w raw_data</code></li>
+</ol></div>
+<div data-lang="en"><p>In the simulator below, run in order:</p>
+<ol>
+<li><code>mkdir -p project/{raw_data,metadata,reference,scripts,results,logs}</code></li>
+<li><code>cd project</code></li>
+<li><code>touch README.md</code></li>
+<li><code>ls -lh</code></li>
+<li><code>chmod -R a-w raw_data</code></li>
+</ol></div>
+<div class="interactive-panel">
+<div data-term-id="t-fileops"></div>
+</div>
+</section>
+
+<!-- Quiz -->
+<section class="quiz-section">
+<h3>📝 <span data-zh="自我檢測" data-en="Self-Check">自我檢測</span></h3>
+<div class="quiz-q" data-answer="1" data-explain-zh="-p（mkdir）會建立任意層數，已存在也不報錯，是寫腳本最安全的選項。" data-explain-en="-p (mkdir) makes nested dirs and is silent if they exist — safest for scripts.">
+<p data-lang="zh">1. 想一次建立 <code>results/fastqc/sampleA</code> 三層資料夾，最簡單的方法？</p>
+<p data-lang="en">1. Easiest way to create the 3-level <code>results/fastqc/sampleA</code> at once?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><code>mkdir results/fastqc/sampleA</code></div>
+<div class="quiz-opt" data-idx="1"><code>mkdir -p results/fastqc/sampleA</code></div>
+<div class="quiz-opt" data-idx="2"><code>mkdir -r results/fastqc/sampleA</code></div>
+<div class="quiz-opt" data-idx="3"><code>cp -p results/fastqc/sampleA</code></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="2" data-explain-zh="rm 沒有回收桶，建議刪除前用 ls / echo 確認 wildcard 展開內容；-i 互動模式更安全。" data-explain-en="rm has no trash; preview wildcard expansion with ls / echo. -i interactive mode is safer.">
+<p data-lang="zh">2. 關於 <code>rm</code>，下列何者正確？</p><p data-lang="en">2. Which is true about <code>rm</code>?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 刪除後會放到回收桶可以還原</span><span data-lang="en">A. Deletes go to a recycle bin you can restore</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. <code>rm -r</code> 會把整個資料夾保留，只刪檔案</span><span data-lang="en">B. <code>rm -r</code> keeps the directory and deletes only files</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. 真的刪除，無法復原；建議先 ls 預覽 wildcard 結果</span><span data-lang="en">C. Truly deletes; preview wildcard expansion with ls first</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. <code>rm</code> 預設不能刪除任何 fastq 檔</span><span data-lang="en">D. <code>rm</code> by default refuses fastq files</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="3" data-explain-zh="755 = rwx (user) + r-x (group) + r-x (other)；-rwxr-xr-x 就是 755。" data-explain-en="755 = rwx (user) + r-x (group) + r-x (other) — that's -rwxr-xr-x.">
+<p data-lang="zh">3. <code>chmod 755 run.sh</code> 執行後，<code>ls -l run.sh</code> 看到的權限是？</p>
+<p data-lang="en">3. After <code>chmod 755 run.sh</code>, <code>ls -l run.sh</code> shows?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><code>-rw-rw-rw-</code></div>
+<div class="quiz-opt" data-idx="1"><code>-rwxrwxrwx</code></div>
+<div class="quiz-opt" data-idx="2"><code>-rwxrw-rw-</code></div>
+<div class="quiz-opt" data-idx="3"><code>-rwxr-xr-x</code></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="0" data-explain-zh="symlink 只佔少量 bytes，可避免大型 reference 重複複製；多個專案能共用一份。" data-explain-en="A symlink takes a few bytes and lets many projects share one big reference — no duplication.">
+<p data-lang="zh">4. 為什麼 NGS 專案常用 symbolic link 引用 reference genome？</p>
+<p data-lang="en">4. Why do NGS projects often use symlinks for the reference genome?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 不複製檔案、節省 GB 級空間，多個專案共用</span><span data-lang="en">A. No copy — saves gigabytes; many projects share one file</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. symlink 比真實檔案讀取快很多</span><span data-lang="en">B. Symlinks read faster than real files</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. symlink 自動加密檔案</span><span data-lang="en">C. Symlinks encrypt the target</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. samtools 只能讀 symlink</span><span data-lang="en">D. samtools only reads through symlinks</span></div>
+</div><div class="quiz-feedback"></div></div>
+</section>
+
+<nav class="page-nav">
+  <a href="filesystem.html"><span class="nav-dir" data-zh="← 上一章" data-en="← Previous">← 上一章</span><span class="nav-title">Ch 2: Terminal & Filesystem</span></a>
+  <a href="text-streams.html"><span class="nav-dir" data-zh="下一章 →" data-en="Next →">下一章 →</span><span class="nav-title">Ch 4: Text Streams & Pipes</span></a>
+</nav>
+</main>
+<footer class="site-footer">© Charlene — Linux for Bioinformatics Interactive Tutorial</footer>
+<script src="i18n.js"></script>
+<script src="common.js"></script>
+<script>
+// Lightweight FS sandbox for file ops
+const FS={'/home/student':{dirs:[],files:[]}};
+let cwd='/home/student';
+function ensure(p){if(!FS[p])FS[p]={dirs:[],files:[]};}
+function parent(p){const i=p.lastIndexOf('/');return i<=0?'/':p.slice(0,i);}
+function basename(p){return p.slice(p.lastIndexOf('/')+1);}
+function resolve(p){if(!p)return cwd;if(p==='~')return '/home/student';if(p.startsWith('~/'))return '/home/student/'+p.slice(2);if(p.startsWith('/'))return p.replace(/\/$/,'')||'/';const parts=(cwd+'/'+p).split('/');const out=[];parts.forEach(s=>{if(s===''||s==='.')return;if(s==='..'){out.pop();return;}out.push(s);});return '/'+out.join('/');}
+function expandBraces(s){const m=s.match(/\{([^{}]+)\}/);if(!m)return [s];const opts=m[1].split(',');const out=[];opts.forEach(o=>{const next=s.replace(m[0],o);out.push.apply(out,expandBraces(next));});return out;}
+function listing(path){const node=FS[path];if(!node)return null;const items=[];node.dirs.forEach(d=>items.push(d+'/'));node.files.forEach(f=>items.push(f));return items.join('  ')||'(empty)';}
+function listingLong(path){const node=FS[path];if(!node)return null;const lines=[];node.dirs.forEach(d=>lines.push('drwxr-xr-x  charlene  4.0K  May  2 10:00  '+d+'/'));node.files.forEach(f=>lines.push('-rw-r--r--  charlene   0    May  2 10:00  '+f));return lines.join('\n')||'(empty)';}
+
+TermSim.create('t-fileops',{
+  prompt:'student@bio:~$',
+  title:'file-ops-sandbox',
+  banner:'Sandbox starts empty in /home/student. Try: mkdir -p, touch, ls -lh, chmod, ln -s.',
+  validate:function(cmd){
+    const c=cmd.trim();
+    const term=document.querySelector('[data-term-id="t-fileops"]');
+    function setPrompt(){const d=cwd.replace('/home/student','~');term.querySelector('.terminal-input-row .prompt').textContent='student@bio:'+d+'$';}
+    if(c==='pwd') return {ok:true,out:cwd};
+    if(c==='ls'){const o=listing(cwd);return o!==null?{ok:true,out:o}:{ok:false,err:true,out:'ls error'};}
+    if(c.startsWith('ls -lh')||c.startsWith('ls -l')){
+      const t=c.split(/\s+/).slice(2)[0]; const p=t?resolve(t):cwd;
+      const o=listingLong(p);return o!==null?{ok:true,out:'total: '+o.split('\n').length+'\n'+o}:{ok:false,err:true,out:'ls: no such file/dir'};}
+    if(c.startsWith('ls ')){const t=c.slice(3).trim();const p=resolve(t);const o=listing(p);return o!==null?{ok:true,out:o}:{ok:false,err:true,out:'ls: '+t+': no such file/dir'};}
+    if(c==='cd'){cwd='/home/student';setPrompt();return {ok:true,out:''};}
+    if(c.startsWith('cd ')){const t=c.slice(3).trim();const p=resolve(t);if(FS[p]){cwd=p;setPrompt();return {ok:true,out:''};}return {ok:false,err:true,out:'cd: '+t+': no such directory'};}
+    let m;
+    if(m=c.match(/^mkdir(\s+-p)?\s+(.+)$/)){
+      const args=m[2].trim().split(/\s+/);
+      let made=[];
+      args.forEach(a=>{
+        const expanded=expandBraces(a);
+        expanded.forEach(e=>{
+          const p=resolve(e);
+          if(m[1]){
+            const segs=p.replace(/^\//,'').split('/'); let acc='';
+            segs.forEach(s=>{acc+='/'+s;ensure(acc);if(!FS[parent(acc)].dirs.includes(basename(acc)))FS[parent(acc)].dirs.push(basename(acc));});
+            made.push(p);
+          } else {
+            const par=parent(p),b=basename(p);
+            if(!FS[par])return;
+            if(FS[par].dirs.includes(b)){return;}
+            FS[par].dirs.push(b);ensure(p);made.push(p);
+          }
+        });
+      });
+      return {ok:true,out:'created '+made.length+' director'+(made.length===1?'y':'ies')+': '+made.map(p=>p.replace('/home/student','~')).join(' ')};
+    }
+    if(m=c.match(/^touch\s+(.+)$/)){
+      const args=m[1].split(/\s+/);let cnt=0;
+      args.forEach(a=>{const expanded=expandBraces(a);expanded.forEach(e=>{const p=resolve(e),par=parent(p),b=basename(p);ensure(par);if(!FS[par].files.includes(b)&&!FS[par].dirs.includes(b)){FS[par].files.push(b);cnt++;}});});
+      return {ok:true,out:'touched '+cnt+' file(s)'};
+    }
+    if(m=c.match(/^rm(\s+-[a-zA-Z]+)?\s+(.+)$/)){
+      const flags=m[1]||'',args=m[2].split(/\s+/);let cnt=0;
+      args.forEach(a=>{const expanded=expandBraces(a);expanded.forEach(e=>{const p=resolve(e),par=parent(p),b=basename(p);if(!FS[par])return;const fi=FS[par].files.indexOf(b);if(fi>=0){FS[par].files.splice(fi,1);cnt++;return;}const di=FS[par].dirs.indexOf(b);if(di>=0&&flags.includes('r')){FS[par].dirs.splice(di,1);delete FS[p];cnt++;}else if(di>=0){return;}});});
+      return {ok:true,out:'removed '+cnt+' item(s)'};
+    }
+    if(m=c.match(/^chmod\s+(.+)\s+(.+)$/)){
+      return {ok:true,out:'chmod simulated — permissions applied to: '+m[2]};
+    }
+    if(m=c.match(/^ln\s+-s\s+(\S+)\s+(\S+)$/)){
+      const target=m[1],linkpath=resolve(m[2]);const par=parent(linkpath),b=basename(linkpath);ensure(par);FS[par].files.push(b+' -> '+target);
+      return {ok:true,out:'symlink created: '+m[2]+' -> '+target};
+    }
+    if(m=c.match(/^cp\s+(.+)\s+(\S+)$/)){return {ok:true,out:'cp simulated'};}
+    if(m=c.match(/^mv\s+(\S+)\s+(\S+)$/)){
+      const src=resolve(m[1]),dst=resolve(m[2]);const sp=parent(src),sb=basename(src),dp=parent(dst),db=basename(dst);
+      if(!FS[sp])return {ok:false,err:true,out:'mv: source not found'};
+      const fi=FS[sp].files.indexOf(sb);if(fi>=0){FS[sp].files.splice(fi,1);ensure(dp);FS[dp].files.push(db);return {ok:true,out:'moved'};}
+      return {ok:false,err:true,out:'mv: cannot find '+m[1]};
+    }
+    if(c==='clear') {term.querySelector('.terminal-body').innerHTML='';return {ok:true,out:''};}
+    if(c.startsWith('echo ')) return {ok:true,out:c.slice(5)};
+    return {ok:false,err:true,out:'sh: '+c+': unsupported in sandbox  — try: mkdir, touch, ls, cd, rm, chmod, ln -s, mv, cp'};
+  }
+});
+</script>
+</body></html>

@@ -1,0 +1,293 @@
+<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Ch 13: Workflow Managers — Linux Tutorial</title>
+<link rel="stylesheet" href="styles.css">
+</head><body>
+<nav class="top-nav"><div class="top-nav-inner">
+  <a href="index.html" class="top-nav-brand"><span>🐧</span> <span data-zh="Linux 生資教學" data-en="Linux for Bioinfo">Linux 生資教學</span></a>
+  <ul class="top-nav-links">
+    <li><a href="intro.html">Intro</a></li><li><a href="filesystem.html">Shell</a></li><li><a href="file-ops.html">Files</a></li><li><a href="text-streams.html">Streams</a></li><li><a href="grep-cut-sort.html">grep/cut</a></li><li><a href="awk-sed.html">awk/sed</a></li><li><a href="download-compress.html">Net/Zip</a></li><li><a href="conda.html">Conda</a></li><li><a href="bio-formats.html">Formats</a></li><li><a href="ngs-qc.html">QC</a></li><li><a href="mapping.html">Mapping</a></li><li><a href="bash-scripting.html">Bash</a></li><li><a href="workflow.html" class="active">Workflow</a></li><li><a href="hpc-container.html">HPC</a></li>
+  </ul>
+</div></nav>
+<div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
+<header class="page-hero"><div class="step-badge">CHAPTER 13 / 14</div>
+<h1 data-zh="Workflow Manager — Snakemake / Nextflow" data-en="Workflow Managers — Snakemake / Nextflow">Workflow Manager — Snakemake / Nextflow</h1>
+<p class="subtitle" data-lang="zh">從 Bash script 升級到 workflow：宣告式描述「輸入→輸出」，自動處理依賴、平行化、resume 與部署。</p>
+<p class="subtitle" data-lang="en">Beyond Bash scripts: declarative input→output rules with built-in dependency, parallelism, resume and deployment.</p>
+</header>
+<main class="content-wrap">
+
+<!-- Why -->
+<section class="section">
+<div class="section-label" data-zh="為什麼" data-en="WHY">為什麼</div>
+<h2 data-zh="Bash 與 Workflow 的差別" data-en="Bash scripts vs workflows">Bash 與 Workflow 的差別</h2>
+<table class="comp-table">
+<thead><tr><th data-zh="情境" data-en="Scenario">情境</th><th data-zh="Bash script" data-en="Bash script">Bash script</th><th data-zh="Workflow manager" data-en="Workflow manager">Workflow manager</th></tr></thead>
+<tbody>
+<tr><td data-zh="新增一個樣本" data-en="Add a sample"><strong data-zh="新增一個樣本" data-en="Add a sample">新增一個樣本</strong></td>
+    <td data-zh="改 script、整批重跑" data-en="Edit + rerun whole script">改 script、整批重跑</td>
+    <td data-zh="自動偵測，只跑新樣本" data-en="Auto-detect, runs only the new sample">自動偵測，只跑新樣本</td></tr>
+<tr><td><strong data-zh="中途失敗 resume" data-en="Resume after failure">中途失敗 resume</strong></td>
+    <td data-zh="自己標記哪些已完成" data-en="Manually track what's done">自己標記哪些已完成</td>
+    <td data-zh="從失敗點自動續跑" data-en="Resume from the failed step automatically">自動續跑</td></tr>
+<tr><td><strong data-zh="平行化" data-en="Parallelism">平行化</strong></td>
+    <td data-zh="自己處理 (xargs -P / GNU parallel)" data-en="Roll your own with xargs -P / GNU parallel">自己處理</td>
+    <td data-zh="DAG 自動平行" data-en="Automatic DAG-level parallelism">DAG 自動平行</td></tr>
+<tr><td><strong data-zh="cluster 部署" data-en="Cluster deployment">cluster 部署</strong></td>
+    <td data-zh="得寫 sbatch wrapper" data-en="Write your own sbatch wrappers">得寫 sbatch wrapper</td>
+    <td data-zh="一個 flag 切到 Slurm/PBS/AWS Batch" data-en="One flag flips to Slurm/PBS/AWS Batch">一個 flag 切換</td></tr>
+<tr><td><strong data-zh="可重現 / 共享" data-en="Reproducibility / sharing">可重現 / 共享</strong></td>
+    <td data-zh="可，但需自律" data-en="Possible — but only with discipline">可，但需自律</td>
+    <td data-zh="天然可重現（rule + container/conda）" data-en="Reproducible by design (rule + container/conda)">天然可重現</td></tr>
+</tbody></table>
+</section>
+
+<!-- Snakemake vs Nextflow -->
+<section class="section">
+<div class="section-label" data-zh="兩大選擇" data-en="THE TWO CHOICES">兩大選擇</div>
+<h2 data-zh="Snakemake 還是 Nextflow？" data-en="Snakemake or Nextflow?">Snakemake 還是 Nextflow？</h2>
+<div class="card-grid cols-2">
+  <div class="card"><h4>🐍 Snakemake</h4>
+    <p data-lang="zh"><strong>Python-friendly</strong>。語法類似 Make + Python，rule 描述「input → output → shell」。適合：個人專案、研究室內 pipeline、想用 Python 寫驗證/分析的場景。</p>
+    <p data-lang="en"><strong>Python-friendly.</strong> Make-meets-Python — each rule says "input → output → shell". Great for personal projects, lab pipelines, anything you want to validate or post-process in Python.</p></div>
+  <div class="card"><h4>🌊 Nextflow</h4>
+    <p data-lang="zh"><strong>跨平台、業界標準</strong>。Groovy DSL，process 串成 channel 流。適合：HPC / 雲端部署、想接觸 nf-core 標準 pipeline。</p>
+    <p data-lang="en"><strong>Cross-platform, industry standard.</strong> Groovy DSL with processes connected by channels. Great for HPC / cloud deployment and the nf-core ecosystem.</p></div>
+</div>
+<div class="callout tip"><span class="callout-icon">💡</span><div>
+<p data-lang="zh"><strong>選擇建議：</strong>不確定就選 Snakemake（學習曲線較緩）。要部署 HPC、雲端或想接 <a href="https://nf-co.re/" target="_blank" rel="noopener">nf-core</a> 的標準 pipeline，就學 Nextflow。</p>
+<p data-lang="en"><strong>Recommendation:</strong> default to Snakemake if undecided (gentler learning curve). Pick Nextflow if you need HPC / cloud deployment or want to use <a href="https://nf-co.re/" target="_blank" rel="noopener">nf-core</a> standard pipelines.</p>
+</div></div>
+</section>
+
+<!-- Snakemake -->
+<section class="section">
+<div class="section-label" data-zh="Snakemake" data-en="SNAKEMAKE">Snakemake</div>
+<h2 data-zh="Snakemake 例：FASTQ → FastQC → MultiQC" data-en="Snakemake example: FASTQ → FastQC → MultiQC">Snakemake 例：FASTQ → FastQC → MultiQC</h2>
+<div class="code-tabs">
+<div class="code-tab-btns"><button class="code-tab-btn active" onclick="switchTab(this,'sn1')">Snakefile</button><button class="code-tab-btn" onclick="switchTab(this,'sn2')" data-zh="執行" data-en="Run">執行</button><button class="code-tab-btn" onclick="switchTab(this,'sn3')">DAG</button></div>
+<div class="code-tab-content active" id="sn1"><pre><span class="comment"># Snakefile</span>
+SAMPLES = [<span class="str">"sampleA_R1"</span>, <span class="str">"sampleA_R2"</span>, <span class="str">"sampleB_R1"</span>, <span class="str">"sampleB_R2"</span>]
+
+<span class="kw">rule</span> all:
+    <span class="kw">input</span>:
+        <span class="str">"results/multiqc_report.html"</span>
+
+<span class="kw">rule</span> fastqc:
+    <span class="kw">input</span>:
+        <span class="str">"raw_data/{sample}.fastq.gz"</span>
+    <span class="kw">output</span>:
+        <span class="str">"results/fastqc/{sample}_fastqc.html"</span>
+    <span class="kw">threads</span>: <span class="num">4</span>
+    <span class="kw">shell</span>:
+        <span class="str">"fastqc {input} -o results/fastqc --threads {threads}"</span>
+
+<span class="kw">rule</span> multiqc:
+    <span class="kw">input</span>:
+        expand(<span class="str">"results/fastqc/{s}_fastqc.html"</span>, s=SAMPLES)
+    <span class="kw">output</span>:
+        <span class="str">"results/multiqc_report.html"</span>
+    <span class="kw">shell</span>:
+        <span class="str">"multiqc results/fastqc -o results -n multiqc_report.html"</span></pre></div>
+<div class="code-tab-content" id="sn2"><pre><span class="comment"># 預覽 DAG（不執行）/ Preview the DAG</span>
+<span class="func">snakemake</span> --dag <span class="op">|</span> dot -Tpng <span class="op">&gt;</span> dag.png
+
+<span class="comment"># 跑 — 8 條工作平行 / Run — 8 parallel jobs</span>
+<span class="func">snakemake</span> --cores 8
+
+<span class="comment"># dry-run，看會跑哪些 rule / Dry run — list rules to be executed</span>
+<span class="func">snakemake</span> -n
+
+<span class="comment"># 換到 Slurm cluster — 加 profile 即可 / Switch to Slurm</span>
+<span class="func">snakemake</span> --profile profiles/slurm --jobs 100
+
+<span class="comment"># 用 conda 自動建立每個 rule 的環境
+# Auto-create per-rule conda envs</span>
+<span class="func">snakemake</span> --use-conda --cores 8</pre></div>
+<div class="code-tab-content" id="sn3"><pre>          ┌──────────────────────────┐
+          │  rule all (multiqc.html) │
+          └──────────────┬───────────┘
+                         │
+          ┌──────────────▼───────────┐
+          │ rule multiqc            │
+          └──┬────┬────┬──────┬─────┘
+             │    │    │      │
+    ┌────────┘    │    │      └────────┐
+    ▼             ▼    ▼               ▼
+fastqc        fastqc fastqc        fastqc
+sampleA_R1    sampleA_R2 sampleB_R1 sampleB_R2
+
+<span class="comment"># Snakemake 自動推算依賴並把 4 個 fastqc 平行跑</span></pre></div>
+</div>
+</section>
+
+<!-- Nextflow -->
+<section class="section">
+<div class="section-label" data-zh="Nextflow" data-en="NEXTFLOW">Nextflow</div>
+<h2 data-zh="Nextflow 例：同樣的 FASTQ → FastQC → MultiQC" data-en="Nextflow example: same FASTQ → FastQC → MultiQC">Nextflow 例：同樣的 FASTQ → FastQC → MultiQC</h2>
+<div class="code-tabs">
+<div class="code-tab-btns"><button class="code-tab-btn active" onclick="switchTab(this,'nf1')">main.nf</button><button class="code-tab-btn" onclick="switchTab(this,'nf2')" data-zh="執行" data-en="Run">執行</button></div>
+<div class="code-tab-content active" id="nf1"><pre><span class="comment">// main.nf — DSL2 / Nextflow 22+</span>
+
+<span class="func">nextflow</span>.enable.dsl=<span class="num">2</span>
+
+<span class="kw">params</span>.reads = <span class="str">"raw_data/*.fastq.gz"</span>
+
+<span class="kw">process</span> FASTQC {
+    <span class="kw">tag</span> <span class="str">"$sample"</span>
+    <span class="kw">cpus</span> <span class="num">4</span>
+    <span class="kw">publishDir</span> <span class="str">"results/fastqc"</span>, mode: <span class="str">'copy'</span>
+
+    <span class="kw">input</span>:
+    <span class="kw">tuple</span> <span class="kw">val</span>(sample), <span class="kw">path</span>(reads)
+
+    <span class="kw">output</span>:
+    <span class="kw">path</span> <span class="str">"*.html"</span>, emit: html
+    <span class="kw">path</span> <span class="str">"*.zip"</span>,  emit: zip
+
+    <span class="kw">script</span>:
+    <span class="str">"""
+    fastqc $reads --threads $task.cpus
+    """</span>
+}
+
+<span class="kw">process</span> MULTIQC {
+    <span class="kw">publishDir</span> <span class="str">"results"</span>, mode: <span class="str">'copy'</span>
+    <span class="kw">input</span>: <span class="kw">path</span> qc_files
+    <span class="kw">output</span>: <span class="kw">path</span> <span class="str">"multiqc_report.html"</span>
+    <span class="kw">script</span>: <span class="str">"multiqc . -n multiqc_report.html"</span>
+}
+
+<span class="kw">workflow</span> {
+    Channel.fromPath(<span class="kw">params</span>.reads)
+           .map { fq <span class="op">-&gt;</span> tuple(fq.simpleName, fq) }
+           .set { reads_ch }
+
+    FASTQC(reads_ch)
+    MULTIQC(FASTQC.out.zip.collect())
+}</pre></div>
+<div class="code-tab-content" id="nf2"><pre><span class="comment"># 跑 — 預設 local 平行 / Run locally</span>
+<span class="func">nextflow</span> run main.nf
+
+<span class="comment"># 用 docker / singularity 容器
+# Use docker / singularity</span>
+<span class="func">nextflow</span> run main.nf -profile docker
+<span class="func">nextflow</span> run main.nf -profile singularity
+
+<span class="comment"># 部署到 Slurm — 換一個 profile / Slurm deployment</span>
+<span class="func">nextflow</span> run main.nf -profile slurm
+
+<span class="comment"># resume — 失敗後從中間自動續跑 / Resume after failure</span>
+<span class="func">nextflow</span> run main.nf -resume
+
+<span class="comment"># 直接跑 nf-core 標準 pipeline / Run an nf-core pipeline</span>
+<span class="func">nextflow</span> run nf-core/rnaseq -profile test,docker</pre></div>
+</div>
+</section>
+
+<!-- Folder structure -->
+<section class="section">
+<div class="section-label" data-zh="專案結構" data-en="LAYOUT">專案結構</div>
+<h2 data-zh="一個 workflow 化專案的標準長相" data-en="What a workflow-driven project looks like">一個 workflow 化專案的標準長相</h2>
+<pre class="fs-tree"><span class="dir">project/</span>
+├── <span class="dir">config/</span>
+│   ├── <span class="file">samples.tsv</span>          <span data-zh="# 樣本表" data-en="# Sample sheet"># 樣本表</span>
+│   └── <span class="file">config.yaml</span>          <span data-zh="# pipeline 參數" data-en="# Pipeline parameters"># pipeline 參數</span>
+├── <span class="dir">workflow/</span>
+│   ├── <span class="file">Snakefile</span>            <span data-zh="# 主 workflow" data-en="# Main workflow"># 主 workflow</span>
+│   ├── <span class="dir">rules/</span>               <span data-zh="# 拆檔的 rule" data-en="# Modular rules"># 拆檔的 rule</span>
+│   └── <span class="dir">envs/</span>                <span data-zh="# 每個 rule 的 conda env" data-en="# Per-rule conda envs"># 每個 rule 的 env</span>
+├── <span class="dir">profiles/</span>
+│   ├── <span class="dir">local/</span>               <span data-zh="# 本機跑" data-en="# Local execution"># 本機跑</span>
+│   └── <span class="dir">slurm/</span>               <span data-zh="# HPC 部署" data-en="# HPC deployment"># HPC 部署</span>
+├── <span class="file">environment.yml</span>          <span data-zh="# 主環境" data-en="# Main env"># 主環境</span>
+├── <span class="file">README.md</span>
+└── <span class="file">.gitignore</span>
+</pre>
+<div class="callout tip"><span class="callout-icon">💡</span><div>
+<p data-lang="zh">把 <code>workflow/</code> + <code>config/</code> + <code>environment.yml</code> 一起放進 git，論文發表時就能 ship 一個完整可重現的 pipeline。這也是 nf-core 與 snakemake-workflows 社群的標準做法。</p>
+<p data-lang="en">Commit <code>workflow/</code>, <code>config/</code> and <code>environment.yml</code> together — your paper ships a reproducible pipeline. This is the standard pattern in the nf-core and snakemake-workflows communities.</p>
+</div></div>
+</section>
+
+<!-- Hands-on -->
+<section class="section">
+<div class="section-label" data-zh="動手做" data-en="HANDS-ON">動手做</div>
+<h2 data-zh="互動：跑一個 mini Snakemake" data-en="Interactive: run a mini Snakemake">互動：跑一個 mini Snakemake</h2>
+<div class="interactive-panel">
+<div data-term-id="t-wf"></div>
+</div>
+</section>
+
+<!-- Quiz -->
+<section class="quiz-section">
+<h3>📝 <span data-zh="自我檢測" data-en="Self-Check">自我檢測</span></h3>
+<div class="quiz-q" data-answer="1" data-explain-zh="workflow manager 自動建立 DAG，只重跑變動的部分；新樣本不需要整批重跑。" data-explain-en="A workflow manager builds a DAG and only re-runs what's changed; new samples don't trigger a full rerun.">
+<p data-lang="zh">1. 與 Bash script 相比，workflow manager 最關鍵的優勢是？</p>
+<p data-lang="en">1. The single most important advantage over a Bash script?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 比較漂亮</span><span data-lang="en">A. Prettier code</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. 自動依賴解析、增量重跑、cluster 部署</span><span data-lang="en">B. Automatic dependency resolution, incremental rerun, cluster deployment</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. 不需要寫 shell 指令</span><span data-lang="en">C. You don't need shell commands</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 跑得比較快</span><span data-lang="en">D. Faster execution</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="3" data-explain-zh="rule all 是 Snakemake 的「目標」清單，告訴系統要產出哪些最終檔案；其他 rule 都是達成 all 的依賴。" data-explain-en="rule all lists final targets; everything else is a dependency to reach those.">
+<p data-lang="zh">2. Snakemake 中 <code>rule all:</code> 的角色是？</p>
+<p data-lang="en">2. The role of <code>rule all:</code> in Snakemake?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 第一個被執行的 rule</span><span data-lang="en">A. The first rule to execute</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. 包含所有 shell 指令</span><span data-lang="en">B. Holds all shell commands</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. Snakemake 規範的保留字</span><span data-lang="en">C. A Snakemake reserved word</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 列出最終產出，當 input → 推回所需 rule</span><span data-lang="en">D. Lists final outputs; Snakemake works backwards from there</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="0" data-explain-zh="-resume 用 cache 跳過已完成的 step，是 Nextflow 最受歡迎的功能之一。" data-explain-en="-resume reuses cached results — one of Nextflow's most loved features.">
+<p data-lang="zh">3. Nextflow 的 <code>-resume</code> 用途是？</p>
+<p data-lang="en">3. What does Nextflow's <code>-resume</code> do?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 從失敗點繼續，已成功的 process 直接從 cache 取結果</span><span data-lang="en">A. Continue from the failed step; reuse cached results</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. 重新開始 pipeline</span><span data-lang="en">B. Restart from scratch</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. 從第二個樣本繼續</span><span data-lang="en">C. Continue from the second sample</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 預設行為</span><span data-lang="en">D. Default behaviour</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="2" data-explain-zh="nf-core 是 Nextflow 社群維護的標準 pipeline 集合，提供高品質、可重現、可發表級別的工具。" data-explain-en="nf-core is the curated community library of standard Nextflow pipelines — production-quality and reproducible.">
+<p data-lang="zh">4. <code>nf-core/rnaseq</code> 是什麼？</p>
+<p data-lang="en">4. What is <code>nf-core/rnaseq</code>?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. Snakemake 的範例</span><span data-lang="en">A. A Snakemake example</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. RNA-seq 軟體</span><span data-lang="en">B. An RNA-seq tool</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. nf-core 提供的標準 Nextflow RNA-seq pipeline</span><span data-lang="en">C. The community-standard Nextflow RNA-seq pipeline from nf-core</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. R 套件</span><span data-lang="en">D. An R package</span></div>
+</div><div class="quiz-feedback"></div></div>
+</section>
+
+<nav class="page-nav">
+  <a href="bash-scripting.html"><span class="nav-dir" data-zh="← 上一章" data-en="← Previous">← 上一章</span><span class="nav-title">Ch 12: Bash Scripting</span></a>
+  <a href="hpc-container.html"><span class="nav-dir" data-zh="下一章 →" data-en="Next →">下一章 →</span><span class="nav-title">Ch 14: HPC, Slurm & Containers</span></a>
+</nav>
+</main>
+<footer class="site-footer">© Charlene — Linux for Bioinformatics Interactive Tutorial</footer>
+<script src="i18n.js"></script>
+<script src="common.js"></script>
+<script>
+TermSim.create('t-wf',{
+  prompt:'student@bio:~/project$',
+  title:'snakemake-sandbox',
+  banner:'A Snakefile is loaded. Try: snakemake -n / snakemake --cores 4 / snakemake --dag',
+  validate:function(cmd){
+    const c=cmd.trim();
+    if(c==='cat Snakefile') return {ok:true,out:'SAMPLES = ["A_R1", "A_R2", "B_R1", "B_R2"]\n\nrule all:\n    input:\n        "results/multiqc_report.html"\n\nrule fastqc:\n    input: "raw_data/{sample}.fastq.gz"\n    output: "results/fastqc/{sample}_fastqc.html"\n    threads: 4\n    shell: "fastqc {input} -o results/fastqc --threads {threads}"\n\nrule multiqc:\n    input: expand("results/fastqc/{s}_fastqc.html", s=SAMPLES)\n    output: "results/multiqc_report.html"\n    shell: "multiqc results/fastqc -o results -n multiqc_report.html"'};
+    if(c==='snakemake -n'){return {ok:true,out:'Building DAG of jobs...\nJob counts:\n        count   jobs\n            1   all\n            4   fastqc\n            1   multiqc\n            6\nThis was a dry-run (flag -n).'};}
+    if(c==='snakemake --cores 4'||c==='snakemake -j 4'){return {ok:true,out:'Building DAG of jobs...\nUsing 4 cores...\n[Sat May 02 10:00:00] rule fastqc: A_R1\n[Sat May 02 10:00:00] rule fastqc: A_R2\n[Sat May 02 10:00:00] rule fastqc: B_R1\n[Sat May 02 10:00:00] rule fastqc: B_R2\n[Sat May 02 10:00:30] rule multiqc\n[Sat May 02 10:00:35] localrule all\n6 of 6 steps (100%) done.'};}
+    if(c==='snakemake --dag'){return {ok:true,out:'digraph snakemake_dag {\n    0[label="all"];\n    1[label="multiqc"];\n    2[label="fastqc\\nA_R1"];\n    3[label="fastqc\\nA_R2"];\n    4[label="fastqc\\nB_R1"];\n    5[label="fastqc\\nB_R2"];\n    1 -> 0\n    2 -> 1\n    3 -> 1\n    4 -> 1\n    5 -> 1\n}\n# pipe into "dot -Tpng > dag.png"'};}
+    if(c==='snakemake --use-conda --cores 4'){return {ok:true,out:'Creating conda environment workflow/envs/qc.yaml... done.\nThen runs the same DAG with isolated envs.'};}
+    if(c==='ls') return {ok:true,out:'Snakefile  raw_data/  results/  config/  workflow/'};
+    if(c==='nextflow run main.nf'){return {ok:true,out:'N E X T F L O W   ~  version 23.10\nLaunching `main.nf` [chaotic_curie] - revision: a1b2c3d4\nexecutor >  local (5)\n[1/abcde] process > FASTQC (A_R1)   [100%] 4 of 4 ✔\n[2/fghij] process > MULTIQC         [100%] 1 of 1 ✔\nCompleted at: 02-May-2026 10:00:35\nDuration    : 35s\nCPU hours   : 0.04'};}
+    if(c==='nextflow run main.nf -resume'){return {ok:true,out:'N E X T F L O W   ~  version 23.10\n[cached] process > FASTQC (A_R1)   [100%] 4 of 4, cached: 4 ✔\n[cached] process > MULTIQC         [100%] 1 of 1, cached: 1 ✔\nCompleted at: 02-May-2026 10:00:01\nDuration    : 1s'};}
+    if(c==='clear'){document.querySelector('[data-term-id="t-wf"] .terminal-body').innerHTML='';return {ok:true,out:''};}
+    return {ok:false,err:true,out:'sh: '+c+': try cat Snakefile / snakemake -n / snakemake --cores 4 / snakemake --dag / nextflow run main.nf'};
+  }
+});
+</script>
+</body></html>

@@ -1,0 +1,311 @@
+<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Ch 4: Text Streams & Pipes — Linux Tutorial</title>
+<link rel="stylesheet" href="styles.css">
+</head><body>
+<nav class="top-nav"><div class="top-nav-inner">
+  <a href="index.html" class="top-nav-brand"><span>🐧</span> <span data-zh="Linux 生資教學" data-en="Linux for Bioinfo">Linux 生資教學</span></a>
+  <ul class="top-nav-links">
+    <li><a href="intro.html">Intro</a></li><li><a href="filesystem.html">Shell</a></li><li><a href="file-ops.html">Files</a></li><li><a href="text-streams.html" class="active">Streams</a></li><li><a href="grep-cut-sort.html">grep/cut</a></li><li><a href="awk-sed.html">awk/sed</a></li><li><a href="download-compress.html">Net/Zip</a></li><li><a href="conda.html">Conda</a></li><li><a href="bio-formats.html">Formats</a></li><li><a href="ngs-qc.html">QC</a></li><li><a href="mapping.html">Mapping</a></li><li><a href="bash-scripting.html">Bash</a></li><li><a href="workflow.html">Workflow</a></li><li><a href="hpc-container.html">HPC</a></li>
+  </ul>
+</div></nav>
+<div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
+<header class="page-hero"><div class="step-badge">CHAPTER 4 / 14</div>
+<h1 data-zh="文字檔與串流處理（Pipes）" data-en="Text Streams & Pipes">文字檔與串流處理（Pipes）</h1>
+<p class="subtitle" data-lang="zh">cat、less、head、tail、wc、zcat 加上 pipe (<code>|</code>) 與 redirect (<code>&gt;</code> <code>&gt;&gt;</code>)，30 GB FASTQ 也能秒答「有多少 reads」。</p>
+<p class="subtitle" data-lang="en">cat, less, head, tail, wc, zcat — plus pipes (<code>|</code>) and redirects (<code>&gt;</code> <code>&gt;&gt;</code>) — answer "how many reads?" on a 30 GB FASTQ in seconds.</p>
+</header>
+<main class="content-wrap">
+
+<!-- Section 1: Why -->
+<section class="section">
+<div class="section-label" data-zh="觀念" data-en="CONCEPT">觀念</div>
+<h2 data-zh="為什麼這一章是 Linux 對生資最有價值的部分？" data-en="Why this chapter is Linux's biggest gift to bioinformatics">為什麼這一章是 Linux 對生資最有價值的部分？</h2>
+<div data-lang="zh">
+<p>FASTQ、SAM、VCF、GTF、BED — 通通都是<strong>大型純文字檔</strong>。Linux 的設計哲學「<strong>每個工具只做一件事，並用 pipe 串起來</strong>」就是為這種資料而生：</p>
+<ul>
+  <li>不需要把 30 GB 的 fastq.gz 全部解壓再讀</li>
+  <li>用「邊讀邊處理」的串流方式，幾乎只用一點記憶體</li>
+  <li>可以把 5 個小工具串成一條一行的「mini pipeline」</li>
+</ul>
+</div>
+<div data-lang="en">
+<p>FASTQ, SAM, VCF, GTF, BED — all <strong>large plain-text files</strong>. The Unix philosophy "<strong>do one thing well, then pipe</strong>" was made for this:</p>
+<ul>
+  <li>You never need to decompress an entire 30 GB fastq.gz before reading it</li>
+  <li>Streaming reads/processes data with negligible memory</li>
+  <li>Five small tools chain into a one-line mini pipeline</li>
+</ul>
+</div>
+</section>
+
+<!-- Section 2: View commands -->
+<section class="section">
+<div class="section-label" data-zh="檢視" data-en="VIEWING">檢視</div>
+<h2 data-zh="檢視大型文字檔的工具箱" data-en="Toolkit for viewing big text files">檢視大型文字檔的工具箱</h2>
+<div class="cheat">
+<div class="cheat-cmd">cat file.txt</div><div class="cheat-desc" data-zh="把整個檔案印出來（小檔才用！）" data-en="Print the whole file (only on small files!)">把整個檔案印出來（小檔才用！）</div>
+<div class="cheat-cmd">less file.txt</div><div class="cheat-desc" data-zh="互動翻頁瀏覽（q 離開，/ 搜尋，G 跳到結尾）" data-en="Interactive pager (q quit, / search, G end)">互動翻頁瀏覽</div>
+<div class="cheat-cmd">head -n 4 sample.fastq</div><div class="cheat-desc" data-zh="看前 4 行（FASTQ 一筆 read = 4 行）" data-en="First 4 lines (1 FASTQ record = 4 lines)">看前幾行</div>
+<div class="cheat-cmd">tail -n 20 run.log</div><div class="cheat-desc" data-zh="看最後 20 行（看 log 必備）" data-en="Last 20 lines (essential for logs)">看最後幾行</div>
+<div class="cheat-cmd">tail -f run.log</div><div class="cheat-desc" data-zh="持續追蹤 log 增長（Ctrl+C 結束）" data-en="Follow a growing log live (Ctrl+C to exit)">持續追蹤 log</div>
+<div class="cheat-cmd">wc -l file.txt</div><div class="cheat-desc" data-zh="計算行數" data-en="Count lines">計算行數</div>
+<div class="cheat-cmd">wc -c file.fa</div><div class="cheat-desc" data-zh="計算 bytes（檔案大小）" data-en="Count bytes (file size)">計算 bytes</div>
+<div class="cheat-cmd">zcat file.fastq.gz</div><div class="cheat-desc" data-zh="不解壓直接輸出 .gz 檔內容（生資命脈）" data-en="Stream-decompress .gz without saving — bioinformatics core skill">不解壓直接讀 .gz</div>
+<div class="cheat-cmd">zcat | head</div><div class="cheat-desc" data-zh="只看 .gz 檔的前幾行（避免印 30 GB 出來）" data-en="Peek the first lines of a .gz (don't print 30 GB)">只看 .gz 的前幾行</div>
+</div>
+<div class="callout danger"><span class="callout-icon">🛑</span><div>
+<p data-lang="zh"><strong>千萬別在 30 GB FASTQ 上用 <code>cat</code> 或 <code>vim</code>！</strong>terminal 會卡死、記憶體可能爆掉。FASTQ 必用 <code>head</code>、<code>less</code>、或加上 <code>zcat | head</code>。</p>
+<p data-lang="en"><strong>Never <code>cat</code> or <code>vim</code> a 30 GB FASTQ.</strong> The terminal hangs and memory may explode. Always use <code>head</code>, <code>less</code>, or <code>zcat | head</code>.</p>
+</div></div>
+</section>
+
+<!-- Section 3: Pipe & redirect -->
+<section class="section">
+<div class="section-label" data-zh="核心" data-en="CORE">核心</div>
+<h2 data-zh="Pipe (|) 與 Redirect (&gt; &gt;&gt;) — 文字串流的命脈" data-en="Pipes (|) and Redirects (&gt; &gt;&gt;) — the life force of streams">Pipe (<code>|</code>) 與 Redirect (<code>&gt;</code> <code>&gt;&gt;</code>) — 文字串流的命脈</h2>
+<div class="card-grid cols-2">
+  <div class="card"><h4>| <span data-zh="（Pipe，管線）" data-en="(Pipe)">（Pipe，管線）</span></h4>
+    <p data-lang="zh">把左邊指令的「標準輸出」傳給右邊指令的「標準輸入」。完全不需要中間檔案。</p>
+    <p data-lang="en">Send the stdout of the left command into the stdin of the right command — no intermediate files.</p>
+    <pre class="cmd-line">zcat sample.fastq.gz | head -n 8</pre></div>
+  <div class="card"><h4>&gt; <span data-zh="（覆寫）" data-en="(Overwrite)">（覆寫）</span></h4>
+    <p data-lang="zh">把指令輸出寫進檔案，<strong>覆蓋既有內容</strong>。</p>
+    <p data-lang="en">Write command output to a file, <strong>overwriting</strong> the existing content.</p>
+    <pre class="cmd-line">grep "^>" genome.fa &gt; chrom_headers.txt</pre></div>
+  <div class="card"><h4>&gt;&gt; <span data-zh="（追加）" data-en="(Append)">（追加）</span></h4>
+    <p data-lang="zh">寫進檔案，但<strong>追加</strong>到結尾，常用於 log。</p>
+    <p data-lang="en">Append to a file (don't overwrite). Common for logs.</p>
+    <pre class="cmd-line">echo "[$(date)] step done" &gt;&gt; run.log</pre></div>
+  <div class="card"><h4>&lt; <span data-zh="（從檔案讀入）" data-en="(Read from file)">（從檔案讀入）</span></h4>
+    <p data-lang="zh">把檔案內容當成標準輸入餵給指令。較少用，但在 here-document 與某些工具中很重要。</p>
+    <p data-lang="en">Use a file as stdin. Rare in everyday work but key for here-documents and some tools.</p>
+    <pre class="cmd-line">wc -l &lt; samples.tsv</pre></div>
+</div>
+
+<h3 data-zh="stdout、stderr、與 2&gt;&amp;1" data-en="stdout, stderr, and 2&gt;&amp;1">stdout、stderr、與 <code>2&gt;&amp;1</code></h3>
+<div data-lang="zh"><p>每個 Linux 程式都有三個「流」：<strong>stdin (0)</strong>、<strong>stdout (1)</strong>、<strong>stderr (2)</strong>。預設 <code>&gt;</code> 只導 stdout，錯誤訊息會留在螢幕。</p></div>
+<div data-lang="en"><p>Every Linux program has three streams: <strong>stdin (0)</strong>, <strong>stdout (1)</strong>, <strong>stderr (2)</strong>. By default <code>&gt;</code> redirects stdout only — errors stay on the screen.</p></div>
+<div class="cheat">
+<div class="cheat-cmd">cmd &gt; out.txt 2&gt; err.txt</div><div class="cheat-desc" data-zh="正常輸出與錯誤分開存" data-en="Save stdout and stderr to different files">正常輸出與錯誤分開存</div>
+<div class="cheat-cmd">cmd &gt; run.log 2&gt;&amp;1</div><div class="cheat-desc" data-zh="兩者都進同一個 log（最常見）" data-en="Both into the same log (very common)">兩者都進同一個 log</div>
+<div class="cheat-cmd">cmd &amp;&gt; run.log</div><div class="cheat-desc" data-zh="bash 簡寫，等價於上一行" data-en="Bash shorthand equivalent">bash 簡寫</div>
+<div class="cheat-cmd">cmd 2&gt; /dev/null</div><div class="cheat-desc" data-zh="把錯誤訊息丟掉" data-en="Discard errors">把錯誤訊息丟掉</div>
+</div>
+</section>
+
+<!-- Section 4: Real-world FASTQ -->
+<section class="section">
+<div class="section-label" data-zh="真實場景" data-en="REAL-WORLD">真實場景</div>
+<h2 data-zh="解 FASTQ 的經典 one-liners" data-en="Classic FASTQ one-liners">解 FASTQ 的經典 one-liners</h2>
+<div data-lang="zh"><p>下面這些 one-liner 是生資工程師每週都用的：</p></div>
+<div data-lang="en"><p>The one-liners below are used weekly by every bioinformatician:</p></div>
+<div class="code-tabs">
+<div class="code-tab-btns">
+<button class="code-tab-btn active" onclick="switchTab(this,'oneliner1')" data-zh="計算 read 數" data-en="Count reads">計算 read 數</button>
+<button class="code-tab-btn" onclick="switchTab(this,'oneliner2')" data-zh="只看一筆 read" data-en="Peek one read">只看一筆 read</button>
+<button class="code-tab-btn" onclick="switchTab(this,'oneliner3')" data-zh="平均 read length" data-en="Avg read length">平均 read length</button>
+<button class="code-tab-btn" onclick="switchTab(this,'oneliner4')" data-zh="比對 paired-end" data-en="Pair check">比對 paired-end</button>
+</div>
+<div class="code-tab-content active" id="oneliner1"><pre><span class="comment"># FASTQ：每筆 read = 4 行；read 總數 = 行數 / 4
+# Count reads in a FASTQ — total lines / 4</span>
+zcat sample.fastq.gz | wc -l
+<span class="comment"># 直接得到 read 數：</span>
+zcat sample.fastq.gz | <span class="func">awk</span> <span class="str">'END {print NR/4 " reads"}'</span></pre></div>
+<div class="code-tab-content" id="oneliner2"><pre><span class="comment"># 看第一筆 read（4 行）
+# Inspect the first read (4 lines)</span>
+zcat sample.fastq.gz | head -n 4
+
+<span class="comment"># 結果範例 / sample output：
+# @SRR12345.1 1/1
+# AGCTACGTACGTAGCTAGCTACGT...
+# +
+# IIIIIIIIIIIIIIIIIIIIIIII...</span></pre></div>
+<div class="code-tab-content" id="oneliner3"><pre><span class="comment"># 計算前 10000 reads 的平均長度
+# Average length of the first 10000 reads</span>
+zcat sample.fastq.gz | head -n 40000 \
+  | <span class="func">awk</span> <span class="str">'NR%4==2 {sum+=length($0); n++} END {print "avg:", sum/n}'</span></pre></div>
+<div class="code-tab-content" id="oneliner4"><pre><span class="comment"># 確認 R1 與 R2 的 read 數量一致（paired-end）
+# Verify R1 and R2 have the same read count</span>
+echo <span class="str">"R1: $(zcat sampleA_R1.fastq.gz | wc -l) lines"</span>
+echo <span class="str">"R2: $(zcat sampleA_R2.fastq.gz | wc -l) lines"</span></pre></div>
+</div>
+<div class="callout tip"><span class="callout-icon">💡</span><div>
+<p data-lang="zh"><strong>觀察重點：</strong>沒有任何一行用了「先解壓再讀」，全部都是 <code>zcat</code> 流式處理。30 GB 的 fastq.gz 在這條 one-liner 下只用幾 MB 記憶體即可跑完。</p>
+<p data-lang="en"><strong>Notice:</strong> none of these decompressed first; <code>zcat</code> streams everything. A 30 GB fastq.gz finishes in these one-liners with only a few MB of RAM.</p>
+</div></div>
+</section>
+
+<!-- Section 5: Pipe builder interactive -->
+<section class="section">
+<div class="section-label" data-zh="互動模擬" data-en="INTERACTIVE">互動模擬</div>
+<h2 data-zh="Pipe Builder — 拼出你的第一條 one-liner" data-en="Pipe Builder — assemble your first one-liner">Pipe Builder — 拼出你的第一條 one-liner</h2>
+<div data-lang="zh"><p>選擇下方每個階段的指令，看完整 pipeline 與最終輸出：</p></div>
+<div data-lang="en"><p>Pick a command for each stage below to see the full pipeline and its output:</p></div>
+<div class="interactive-panel">
+<div class="pipe-builder">
+  <div class="pipe-stages">
+    <div class="pipe-stage">
+      <div data-zh="輸入" data-en="Input">輸入</div>
+      <select id="ps1">
+        <option value="zcat sample.fastq.gz">zcat sample.fastq.gz</option>
+        <option value="cat genes.gtf">cat genes.gtf</option>
+        <option value="zcat reads_R1.fastq.gz">zcat reads_R1.fastq.gz</option>
+      </select>
+    </div>
+    <div class="pipe-arrow">|</div>
+    <div class="pipe-stage">
+      <div data-zh="第一步" data-en="Step 1">第一步</div>
+      <select id="ps2">
+        <option value="head -n 8">head -n 8</option>
+        <option value="head -n 40000">head -n 40000</option>
+        <option value="grep '^>'">grep '^&gt;'</option>
+        <option value="grep '^@'">grep '^@'</option>
+      </select>
+    </div>
+    <div class="pipe-arrow">|</div>
+    <div class="pipe-stage">
+      <div data-zh="輸出" data-en="Output">輸出</div>
+      <select id="ps3">
+        <option value="">(stdout)</option>
+        <option value="wc -l">wc -l</option>
+        <option value="awk 'NR%4==2 {sum+=length($0);n++} END{print sum/n}'">awk avg-len</option>
+      </select>
+    </div>
+  </div>
+  <div class="pipe-out" id="pipeOut">command preview here</div>
+</div>
+</div>
+</section>
+
+<!-- Section 6: Hands-on terminal -->
+<section class="section">
+<div class="section-label" data-zh="動手做" data-en="HANDS-ON">動手做</div>
+<h2 data-zh="互動終端機：分析一個 FASTQ" data-en="Interactive terminal: inspect a FASTQ">互動終端機：分析一個 FASTQ</h2>
+<div class="interactive-panel">
+<div data-term-id="t-streams"></div>
+</div>
+<div class="callout tip"><span class="callout-icon">💡</span><div>
+<p data-lang="zh">試試：<code>cat sample.fastq | head -n 4</code>、<code>cat sample.fastq | wc -l</code>、<code>cat sample.fastq | awk 'END{print NR/4 " reads"}'</code>、<code>grep "^@SRR" sample.fastq | wc -l</code></p>
+<p data-lang="en">Try: <code>cat sample.fastq | head -n 4</code>, <code>cat sample.fastq | wc -l</code>, <code>cat sample.fastq | awk 'END{print NR/4 " reads"}'</code>, <code>grep "^@SRR" sample.fastq | wc -l</code></p>
+</div></div>
+</section>
+
+<!-- Quiz -->
+<section class="quiz-section">
+<h3>📝 <span data-zh="自我檢測" data-en="Self-Check">自我檢測</span></h3>
+<div class="quiz-q" data-answer="1" data-explain-zh="FASTQ 一筆 read 占 4 行，所以行數 / 4 才是 read 數。" data-explain-en="A FASTQ record spans 4 lines, so divide line count by 4.">
+<p data-lang="zh">1. 用 <code>wc -l</code> 計算 FASTQ 檔的行數，要怎麼換算成 read 數？</p>
+<p data-lang="en">1. After <code>wc -l</code> on a FASTQ, how do you convert to read count?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 行數 = read 數</span><span data-lang="en">A. lines = reads</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. 行數 / 4 = read 數</span><span data-lang="en">B. lines / 4 = reads</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. 行數 / 2 = read 數</span><span data-lang="en">C. lines / 2 = reads</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 行數 × 4 = read 數</span><span data-lang="en">D. lines × 4 = reads</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="2" data-explain-zh="2>&1 把 stderr (2) 重導向到 stdout (1)，所以正常輸出與錯誤都進 run.log。" data-explain-en="2>&1 redirects stderr to stdout, so both go into run.log.">
+<p data-lang="zh">2. <code>fastqc *.fastq.gz &gt; run.log 2&gt;&amp;1</code> 的效果是？</p>
+<p data-lang="en">2. What does <code>fastqc *.fastq.gz &gt; run.log 2&gt;&amp;1</code> do?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 只記錄錯誤</span><span data-lang="en">A. Records only errors</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. 只記錄正常輸出</span><span data-lang="en">B. Records only normal output</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. 把 stdout 與 stderr 都寫入 run.log</span><span data-lang="en">C. Records both stdout and stderr into run.log</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 同時印到螢幕與檔案</span><span data-lang="en">D. Prints to screen and file at the same time</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="0" data-explain-zh="zcat 串流式解壓，不需要先佔用磁碟空間解壓整個 .gz 檔。" data-explain-en="zcat streams the decompression — no disk space wasted on a fully decompressed copy.">
+<p data-lang="zh">3. 為什麼處理 .fastq.gz 時 <strong>不要</strong>先 <code>gunzip</code> 再分析？</p>
+<p data-lang="en">3. Why <strong>not</strong> <code>gunzip</code> first when analysing a .fastq.gz?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. zcat 流式解壓不需多耗硬碟空間，速度也夠快</span><span data-lang="en">A. zcat streams without extra disk; fast enough</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. gunzip 會破壞 fastq 檔</span><span data-lang="en">B. gunzip corrupts fastq files</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. .gz 檔不能解壓</span><span data-lang="en">C. .gz files can't be decompressed</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 先解壓比較快</span><span data-lang="en">D. Decompressing first is faster</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="3" data-explain-zh="&gt; 會覆寫，&gt;&gt; 會追加；log 通常用 &gt;&gt;。" data-explain-en="&gt; overwrites; &gt;&gt; appends. Logs almost always use &gt;&gt;.">
+<p data-lang="zh">4. 把每次執行的時間追加到 <code>run.log</code>，正確寫法是？</p>
+<p data-lang="en">4. To append a timestamp to <code>run.log</code> on each run:</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><code>date | run.log</code></div>
+<div class="quiz-opt" data-idx="1"><code>date &lt; run.log</code></div>
+<div class="quiz-opt" data-idx="2"><code>date &gt; run.log</code></div>
+<div class="quiz-opt" data-idx="3"><code>date &gt;&gt; run.log</code></div>
+</div><div class="quiz-feedback"></div></div>
+</section>
+
+<nav class="page-nav">
+  <a href="file-ops.html"><span class="nav-dir" data-zh="← 上一章" data-en="← Previous">← 上一章</span><span class="nav-title">Ch 3: File Ops</span></a>
+  <a href="grep-cut-sort.html"><span class="nav-dir" data-zh="下一章 →" data-en="Next →">下一章 →</span><span class="nav-title">Ch 5: grep / cut / sort</span></a>
+</nav>
+</main>
+<footer class="site-footer">© Charlene — Linux for Bioinformatics Interactive Tutorial</footer>
+<script src="i18n.js"></script>
+<script src="common.js"></script>
+<script>
+// Pipe builder
+const pseudoFastq=
+'@SRR111.1 read1\nACGTAGCTAGCTAGCTAGCTAGCTAGCTAGCT\n+\nIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII\n'+
+'@SRR111.2 read2\nACGTAGCTAGCTAGCTAGCTAGCT\n+\nIIIIIIIIIIIIIIIIIIIIIIII\n'+
+'@SRR111.3 read3\nACGTAGCTAGCTAGCTAGCTAG\n+\nIIIIIIIIIIIIIIIIIIIIII\n';
+function updatePipe(){
+  const a=document.getElementById('ps1').value,
+        b=document.getElementById('ps2').value,
+        c=document.getElementById('ps3').value;
+  const cmd=a+' | '+b+(c?' | '+c:'');
+  let out='';
+  if(a.includes('genes.gtf') && b.includes("'^>'")){ out='(no matches — GTF lines start with chrom name, not >)';}
+  else if(a.includes('fastq') && b==="grep '^>'"){ out='(no matches — FASTQ lines start with @, not >)';}
+  else if(a.includes('fastq') && b==="grep '^@'" && c==='wc -l'){ out='3'; }
+  else if(a.includes('fastq') && b==='head -n 8'){
+    out='@SRR111.1 read1\nACGTAGCTAGCTAGCTAGCTAGCTAGCTAGCT\n+\nIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII\n@SRR111.2 read2\nACGTAGCTAGCTAGCTAGCT\n+\nIIIIIIIIIIIIIIIIIIIIII';
+  }
+  else if(a.includes('fastq') && b==='head -n 40000' && c.startsWith('awk')){ out='28.0  <span class="hi">← average read length</span>'; }
+  else if(a.includes('fastq') && b==='head -n 40000'){ out='(would print first 40000 lines = 10000 reads)'; }
+  else if(a.includes('fastq') && b==='head -n 8' && c==='wc -l'){ out='8'; }
+  else if(a.includes('genes.gtf') && b==='head -n 8'){ out='chr1  HAVANA  gene        11868  14409  .  +  .  gene_id "ENSG..."\nchr1  HAVANA  transcript  11868  14409  .  +  .  ...\n... (5 more lines)'; }
+  else { out='(preview)'; }
+  document.getElementById('pipeOut').innerHTML='<span class="hi">$ </span>'+cmd+'<br><br>'+out;
+}
+['ps1','ps2','ps3'].forEach(id=>document.getElementById(id).addEventListener('change',updatePipe));
+updatePipe();
+
+// Terminal sandbox
+const FASTQ='@SRR12345.1 1/1\nAGCTACGTACGTAGCTAGCTACGT\n+\nIIIIIIIIIIIIIIIIIIIIIIII\n@SRR12345.2 1/1\nACGTACGTAGCTACGTAGCTACGT\n+\nIIIIIIIIIIIIIIIIIIIIIIII\n@SRR12345.3 1/1\nTTACGTAGCTACGTACGTAGCTAG\n+\nIIIIIIIIIIIIIIIIIIIIIIII\n';
+TermSim.create('t-streams',{
+  prompt:'student@bio:~$',
+  title:'fastq-streams',
+  banner:'A small file "sample.fastq" is loaded (3 reads). Try: cat / head / wc -l / grep / pipes.',
+  validate:function(cmd){
+    const c=cmd.trim();
+    function pipeProcess(input,steps){
+      let cur=input;
+      for(const s of steps){
+        const t=s.trim();
+        if(t==='wc -l') cur=String(cur.split('\n').filter(x=>x.length).length);
+        else if(t.startsWith('head -n ')){const n=+t.split(/\s+/)[2];cur=cur.split('\n').slice(0,n).join('\n');}
+        else if(t.startsWith('head')){cur=cur.split('\n').slice(0,10).join('\n');}
+        else if(t.startsWith('tail -n ')){const n=+t.split(/\s+/)[2];cur=cur.split('\n').filter(x=>x.length).slice(-n).join('\n');}
+        else if(t.startsWith('grep ')){const m=t.match(/grep\s+["']?([^"']+)["']?/);if(m){const pat=m[1];const re=new RegExp(pat.replace(/^\^/,'^'));cur=cur.split('\n').filter(l=>re.test(l)).join('\n');}}
+        else if(t.startsWith('awk ') && t.includes('NR/4')){const lines=cur.split('\n').filter(x=>x.length).length;cur=Math.floor(lines/4)+' reads';}
+        else if(t.startsWith('awk ') && t.includes('NR%4==2')){const ls=cur.split('\n').filter(x=>x.length);let sum=0,n=0;ls.forEach((l,i)=>{if((i+1)%4===2){sum+=l.length;n++;}});cur='avg: '+(n?(sum/n):0);}
+        else { cur='[unsupported step: '+t+']'; }
+      }
+      return cur;
+    }
+    const parts=c.split('|');
+    const head=parts[0].trim();
+    let stream=null;
+    if(head==='cat sample.fastq') stream=FASTQ;
+    else if(head==='zcat sample.fastq.gz') stream=FASTQ;
+    else if(head==='cat samples.tsv') stream='sample\tcondition\nA\tctrl\nB\ttreat\n';
+    else if(head==='ls') return {ok:true,out:'sample.fastq  samples.tsv  README.md'};
+    else if(head==='clear'){document.querySelector('[data-term-id="t-streams"] .terminal-body').innerHTML='';return {ok:true,out:''};}
+    else if(head.startsWith('echo ')) return {ok:true,out:head.slice(5)};
+    else return {ok:false,err:true,out:'sh: '+head+': try cat sample.fastq, zcat sample.fastq.gz, ls, head, wc, grep, awk'};
+    const result=pipeProcess(stream,parts.slice(1));
+    return {ok:true,out:result};
+  }
+});
+</script>
+</body></html>

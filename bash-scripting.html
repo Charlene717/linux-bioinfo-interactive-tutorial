@@ -1,0 +1,297 @@
+<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Ch 12: Bash Scripting — Linux Tutorial</title>
+<link rel="stylesheet" href="styles.css">
+</head><body>
+<nav class="top-nav"><div class="top-nav-inner">
+  <a href="index.html" class="top-nav-brand"><span>🐧</span> <span data-zh="Linux 生資教學" data-en="Linux for Bioinfo">Linux 生資教學</span></a>
+  <ul class="top-nav-links">
+    <li><a href="intro.html">Intro</a></li><li><a href="filesystem.html">Shell</a></li><li><a href="file-ops.html">Files</a></li><li><a href="text-streams.html">Streams</a></li><li><a href="grep-cut-sort.html">grep/cut</a></li><li><a href="awk-sed.html">awk/sed</a></li><li><a href="download-compress.html">Net/Zip</a></li><li><a href="conda.html">Conda</a></li><li><a href="bio-formats.html">Formats</a></li><li><a href="ngs-qc.html">QC</a></li><li><a href="mapping.html">Mapping</a></li><li><a href="bash-scripting.html" class="active">Bash</a></li><li><a href="workflow.html">Workflow</a></li><li><a href="hpc-container.html">HPC</a></li>
+  </ul>
+</div></nav>
+<div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
+<header class="page-hero"><div class="step-badge">CHAPTER 12 / 14</div>
+<h1 data-zh="Bash Scripting — 把指令變成可重跑流程" data-en="Bash Scripting — turn commands into rerunnable pipelines">Bash Scripting — 把指令變成可重跑流程</h1>
+<p class="subtitle" data-lang="zh">變數、loop、條件、函式、<code>set -euo pipefail</code>、log、debugging — 從手動跑指令的初學者，跨進中階 NGS 分析。</p>
+<p class="subtitle" data-lang="en">Variables, loops, conditionals, functions, <code>set -euo pipefail</code>, logging, debugging — the leap from hand-running commands to intermediate NGS practice.</p>
+</header>
+<main class="content-wrap">
+
+<!-- Why -->
+<section class="section">
+<div class="section-label" data-zh="為什麼" data-en="WHY">為什麼</div>
+<h2 data-zh="為什麼要寫 script？" data-en="Why write scripts at all?">為什麼要寫 script？</h2>
+<div class="card-grid cols-2">
+  <div class="card"><h4 data-zh="❌ 沒寫 script 的痛" data-en="❌ Without scripting">❌ 沒寫 script 的痛</h4>
+    <p data-lang="zh">100 個樣本要跑 fastp，複製貼上 100 次。隔週老闆問：當時用什麼參數？日後想重跑——記不起來。</p>
+    <p data-lang="en">100 samples × fastp → 100 copy-pastes. A week later your PI asks "what parameters?" — you can't remember. Trying to rerun the analysis a month later? Good luck.</p></div>
+  <div class="card"><h4 data-zh="✅ 寫 script 的好處" data-en="✅ With scripting">✅ 寫 script 的好處</h4>
+    <p data-lang="zh">所有指令、參數、版本記錄成 <code>scripts/run_qc.sh</code>，一行 <code>bash run_qc.sh</code> 就能 100 樣本全跑。重跑、分享、除錯都簡單。</p>
+    <p data-lang="en">Commands, parameters, versions live in <code>scripts/run_qc.sh</code>. One <code>bash run_qc.sh</code> reruns everything. Sharing, debugging, time-traveling — all easy.</p></div>
+</div>
+</section>
+
+<!-- Skeleton -->
+<section class="section">
+<div class="section-label" data-zh="骨架" data-en="SKELETON">骨架</div>
+<h2 data-zh="生資 Bash script 的標準骨架" data-en="The standard bioinformatics Bash skeleton">生資 Bash script 的標準骨架</h2>
+<div class="code-tabs">
+<div class="code-tab-btns"><button class="code-tab-btn active" onclick="switchTab(this,'sk1')" data-zh="完整骨架" data-en="Full skeleton">完整骨架</button><button class="code-tab-btn" onclick="switchTab(this,'sk2')" data-zh="逐句解釋" data-en="Annotated">逐句解釋</button></div>
+<div class="code-tab-content active" id="sk1"><pre><span class="comment">#!/usr/bin/env bash
+# run_fastqc.sh — batch FastQC + MultiQC for an NGS project</span>
+
+<span class="kw">set</span> -euo pipefail
+<span class="kw">IFS</span>=$<span class="str">'\n\t'</span>
+
+<span class="comment"># ---- Config ----</span>
+RAW_DIR=<span class="str">"raw_data"</span>
+OUT_DIR=<span class="str">"results/fastqc"</span>
+LOG_DIR=<span class="str">"logs"</span>
+THREADS=<span class="num">8</span>
+
+<span class="comment"># ---- Setup ----</span>
+mkdir -p <span class="str">"$OUT_DIR"</span> <span class="str">"$LOG_DIR"</span>
+
+<span class="comment"># ---- Run ----</span>
+<span class="kw">for</span> fq <span class="kw">in</span> <span class="str">"$RAW_DIR"</span>/*.fastq.gz; <span class="kw">do</span>
+    sample=$(<span class="func">basename</span> <span class="str">"$fq"</span> .fastq.gz)
+    <span class="func">echo</span> <span class="str">"[$(date)] FastQC on $sample"</span>
+    fastqc <span class="str">"$fq"</span> -o <span class="str">"$OUT_DIR"</span> --threads <span class="str">"$THREADS"</span> \
+        <span class="op">&gt;&gt;</span> <span class="str">"$LOG_DIR/fastqc.log"</span> 2<span class="op">&gt;&amp;1</span>
+<span class="kw">done</span>
+
+multiqc <span class="str">"$OUT_DIR"</span> -o <span class="str">"$OUT_DIR"</span> 2<span class="op">&gt;&amp;1</span> <span class="op">|</span> tee <span class="str">"$LOG_DIR/multiqc.log"</span>
+
+<span class="func">echo</span> <span class="str">"[$(date)] All done."</span></pre></div>
+<div class="code-tab-content" id="sk2"><pre><span class="comment">#!/usr/bin/env bash      ← shebang，告訴系統用 bash 執行
+# 標題與用途註解
+                          ← header / what this script does</span>
+
+<span class="kw">set</span> -e        <span class="comment"># 任一指令失敗 → 立刻退出 / fail-fast on any error</span>
+<span class="kw">set</span> -u        <span class="comment"># 用未定義變數 → 退出（救你不被 $undef_var 害死）</span>
+<span class="kw">set</span> -o pipefail <span class="comment"># pipe 中任一段失敗 → 整個 pipeline 算失敗</span>
+<span class="kw">IFS</span>=$<span class="str">'\n\t'</span>  <span class="comment"># 防止 spaces 把檔名意外切開（生資檔名常含空白）</span>
+
+<span class="comment">RAW_DIR=...     ← 把所有路徑與參數放最上面，方便修改 / variables on top</span>
+
+mkdir -p ...    <span class="comment"># 產出目錄與 log 目錄都先建好</span>
+
+<span class="kw">for</span> fq <span class="kw">in</span> ...   <span class="comment"># 對每個 fastq 跑 FastQC</span>
+  <span class="func">basename</span>     <span class="comment"># 拿掉路徑與副檔名 → 樣本名</span>
+  <span class="func">echo</span> + date  <span class="comment"># log 第一件事就是寫時間</span>
+  <span class="op">&gt;&gt;</span> log 2<span class="op">&gt;&amp;1</span> <span class="comment"># stdout / stderr 都進 log</span>
+
+multiqc ... <span class="op">|</span> tee <span class="comment"># tee：螢幕 + log 同時看到</span></pre></div>
+</div>
+<div class="callout warn"><span class="callout-icon">⚠️</span><div>
+<p data-lang="zh"><strong>三句話救命：</strong><br>
+<code>set -e</code> ：失敗就停（不要繼續處理錯誤資料）。<br>
+<code>set -u</code> ：拼錯變數名就停（避免 <code>rm -rf $TYPO/</code>）。<br>
+<code>set -o pipefail</code> ：pipe 任一段失敗就算失敗（默認只看最後一段）。</p>
+<p data-lang="en"><strong>Three life-savers:</strong><br>
+<code>set -e</code> — stop on any failure (don't keep processing broken data).<br>
+<code>set -u</code> — stop on typoed variables (avoid <code>rm -rf $TYPO/</code>).<br>
+<code>set -o pipefail</code> — fail if any stage of a pipe fails (default only sees the last stage).</p>
+</div></div>
+</section>
+
+<!-- Variables / loops / conditionals -->
+<section class="section">
+<div class="section-label" data-zh="語法" data-en="SYNTAX">語法</div>
+<h2 data-zh="Bash 必懂語法" data-en="Bash syntax you must know">Bash 必懂語法</h2>
+<div class="code-tabs">
+<div class="code-tab-btns">
+<button class="code-tab-btn active" onclick="switchTab(this,'b1')" data-zh="變數" data-en="Variables">變數</button>
+<button class="code-tab-btn" onclick="switchTab(this,'b2')" data-zh="for loop" data-en="for loop">for loop</button>
+<button class="code-tab-btn" onclick="switchTab(this,'b3')" data-zh="while" data-en="while">while</button>
+<button class="code-tab-btn" onclick="switchTab(this,'b4')" data-zh="if 判斷" data-en="if">if 判斷</button>
+<button class="code-tab-btn" onclick="switchTab(this,'b5')" data-zh="函式" data-en="Functions">函式</button>
+<button class="code-tab-btn" onclick="switchTab(this,'b6')" data-zh="參數" data-en="CLI args">CLI 參數</button>
+</div>
+<div class="code-tab-content active" id="b1"><pre><span class="comment"># 設變數（不能有空白！） / Set variables — NO spaces around =</span>
+THREADS=<span class="num">8</span>
+GENOME=<span class="str">"reference/genome.fa"</span>
+
+<span class="comment"># 用變數一定加雙引號 / Always quote when using</span>
+<span class="func">echo</span> <span class="str">"Using $THREADS threads"</span>
+
+<span class="comment"># 命令展開 / Command substitution</span>
+NOW=$(date +%Y%m%d)
+NREADS=$(zcat sample.fq.gz <span class="op">|</span> wc -l)
+
+<span class="comment"># 預設值 / Default value if undefined</span>
+THREADS=<span class="str">${THREADS:-4}</span>  <span class="comment"># 沒設過就用 4</span></pre></div>
+<div class="code-tab-content" id="b2"><pre><span class="comment"># 對每個 fastq.gz 做事 / Iterate over fastq.gz files</span>
+<span class="kw">for</span> fq <span class="kw">in</span> raw_data/*.fastq.gz; <span class="kw">do</span>
+    sample=$(basename <span class="str">"$fq"</span> .fastq.gz)
+    <span class="func">echo</span> <span class="str">"Processing $sample..."</span>
+    fastqc <span class="str">"$fq"</span> -o results/fastqc
+<span class="kw">done</span>
+
+<span class="comment"># 從 sample sheet 讀（while 更安全） / From a sample sheet</span>
+<span class="kw">while</span> IFS=$<span class="str">'\t'</span> read -r sample fq1 fq2; <span class="kw">do</span>
+    <span class="func">echo</span> <span class="str">"=== $sample ==="</span>
+    fastp -i <span class="str">"$fq1"</span> -I <span class="str">"$fq2"</span> ...
+<span class="kw">done</span> <span class="op">&lt;</span> samples.tsv</pre></div>
+<div class="code-tab-content" id="b3"><pre><span class="comment"># 一個 file path、一個一個讀 / Read line-by-line</span>
+<span class="kw">while</span> read -r line; <span class="kw">do</span>
+    <span class="func">echo</span> <span class="str">"line: $line"</span>
+<span class="kw">done</span> <span class="op">&lt;</span> samples.txt
+
+<span class="comment"># 重要：read -r 防止 \ 被解釋；IFS 設定可避免空白問題</span></pre></div>
+<div class="code-tab-content" id="b4"><pre><span class="comment"># 檔案存在嗎？ / Does the file exist?</span>
+<span class="kw">if</span> [[ -f <span class="str">"$fq"</span> ]]; <span class="kw">then</span>
+    <span class="func">echo</span> <span class="str">"$fq exists"</span>
+<span class="kw">else</span>
+    <span class="func">echo</span> <span class="str">"$fq missing — abort"</span>
+    <span class="func">exit</span> 1
+<span class="kw">fi</span>
+
+<span class="comment"># 多重條件 / Multiple conditions</span>
+<span class="kw">if</span> [[ <span class="str">"$THREADS"</span> -gt 8 <span class="op">&amp;&amp;</span> -d <span class="str">"$OUT_DIR"</span> ]]; <span class="kw">then</span>
+    <span class="func">echo</span> <span class="str">"high-thread run starting"</span>
+<span class="kw">fi</span>
+
+<span class="comment"># 常見測試運算子 / Common test operators
+# -f file，-d dir，-e exists，-s 非空
+# -eq -ne -gt -lt（數字）； == != （字串）</span></pre></div>
+<div class="code-tab-content" id="b5"><pre><span class="kw">function</span> run_fastqc() {
+    <span class="kw">local</span> fq=<span class="str">"$1"</span>
+    <span class="kw">local</span> outdir=<span class="str">"$2"</span>
+    <span class="func">echo</span> <span class="str">"[$(date)] FastQC on $fq"</span>
+    fastqc <span class="str">"$fq"</span> -o <span class="str">"$outdir"</span> --threads 4
+}
+
+<span class="comment"># 呼叫 / Call</span>
+run_fastqc raw_data/sampleA.fastq.gz results/fastqc</pre></div>
+<div class="code-tab-content" id="b6"><pre><span class="comment"># 取命令列參數 / Read CLI args</span>
+<span class="comment"># $1, $2, ... 第 1, 2 ... 個參數
+# $0 腳本名；$# 參數數量；$@ 全部參數</span>
+
+<span class="kw">if</span> [[ <span class="str">"$#"</span> -lt 2 ]]; <span class="kw">then</span>
+    <span class="func">echo</span> <span class="str">"Usage: $0 &lt;input.fastq.gz&gt; &lt;outdir&gt;"</span>
+    <span class="func">exit</span> 1
+<span class="kw">fi</span>
+
+INPUT=<span class="str">"$1"</span>
+OUTDIR=<span class="str">"$2"</span>
+<span class="func">echo</span> <span class="str">"Running on $INPUT, output to $OUTDIR"</span></pre></div>
+</div>
+</section>
+
+<!-- Debugging -->
+<section class="section">
+<div class="section-label" data-zh="除錯" data-en="DEBUGGING">除錯</div>
+<h2 data-zh="當 script 出錯時的 4 個救命招" data-en="4 lifesavers when your script breaks">當 script 出錯時的 4 個救命招</h2>
+<div class="cheat">
+<div class="cheat-cmd">bash -x run.sh</div><div class="cheat-desc" data-zh="-x：印出每個指令展開後的樣子（神器）" data-en="-x: print each expanded command (the killer feature)">逐行追蹤展開</div>
+<div class="cheat-cmd">bash -n run.sh</div><div class="cheat-desc" data-zh="-n：只檢查語法不執行" data-en="-n: syntax check only, no execution">只檢查語法</div>
+<div class="cheat-cmd">echo $?</div><div class="cheat-desc" data-zh="看上一個指令的 exit code（0=成功）" data-en="Print the previous exit code (0 = success)">看 exit code</div>
+<div class="cheat-cmd">trap 'echo "ERR at line $LINENO"' ERR</div><div class="cheat-desc" data-zh="腳本失敗時自動印出錯誤行號" data-en="Auto-log line number on script failure">失敗時印行號</div>
+</div>
+<div class="callout tip"><span class="callout-icon">💡</span><div>
+<p data-lang="zh"><strong>實戰心法：</strong>把 <code>echo "[$(date)] step X"</code> 撒在每個關鍵步驟前後，等於免費的 log。配合 <code>&gt;&gt; logs/run.log 2&gt;&amp;1</code>，你永遠都知道分析在哪一步死掉。</p>
+<p data-lang="en"><strong>Pro tip:</strong> sprinkle <code>echo "[$(date)] step X"</code> around every key step — free logs. Combined with <code>&gt;&gt; logs/run.log 2&gt;&amp;1</code>, you always know where the run died.</p>
+</div></div>
+</section>
+
+<!-- Hands-on -->
+<section class="section">
+<div class="section-label" data-zh="動手做" data-en="HANDS-ON">動手做</div>
+<h2 data-zh="互動：跑一個 mini Bash script" data-en="Interactive: run a mini Bash script">互動：跑一個 mini Bash script</h2>
+<div class="interactive-panel">
+<div data-term-id="t-bash"></div>
+</div>
+<div class="callout tip"><span class="callout-icon">💡</span><div>
+<p data-lang="zh">試試：<code>bash run_qc.sh</code>、<code>bash -x run_qc.sh</code>、<code>echo $?</code></p>
+<p data-lang="en">Try: <code>bash run_qc.sh</code>, <code>bash -x run_qc.sh</code>, <code>echo $?</code></p>
+</div></div>
+</section>
+
+<!-- Quiz -->
+<section class="quiz-section">
+<h3>📝 <span data-zh="自我檢測" data-en="Self-Check">自我檢測</span></h3>
+<div class="quiz-q" data-answer="0" data-explain-zh="set -euo pipefail 是腳本第一行（通常）的標準三件組——失敗即停、變數錯停、pipe 失敗也算失敗。" data-explain-en="set -euo pipefail is the canonical opening — fail-fast, undefined-var stop, pipe-failure detection.">
+<p data-lang="zh">1. 寫 Bash script 時為什麼第一行常是 <code>set -euo pipefail</code>？</p>
+<p data-lang="en">1. Why does almost every Bash script start with <code>set -euo pipefail</code>?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 任一錯誤、未定義變數、pipe 失敗，都立刻退出</span><span data-lang="en">A. Bail out on any error, undefined variable, or pipe failure</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. 啟用詳細模式</span><span data-lang="en">B. Enables verbose mode</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. 自動裝缺少的工具</span><span data-lang="en">C. Auto-installs missing tools</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 是 Bash 必須語法</span><span data-lang="en">D. It's required syntax</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="2" data-explain-zh="$(...) 是 command substitution，把指令的 stdout 結果存進變數。" data-explain-en="$(...) is command substitution — stores the stdout of a command into a variable.">
+<p data-lang="zh">2. <code>NREADS=$(zcat sample.fq.gz | wc -l)</code> 在做什麼？</p>
+<p data-lang="en">2. What does <code>NREADS=$(zcat sample.fq.gz | wc -l)</code> do?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 設 NREADS 為字串 "zcat sample.fq.gz | wc -l"</span><span data-lang="en">A. Sets NREADS to the literal string</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. 沒效，缺空格</span><span data-lang="en">B. Errors — missing spaces</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. 把 zcat | wc -l 的結果存到 NREADS</span><span data-lang="en">C. Captures the result of zcat | wc -l into NREADS</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 把指令結果輸出到 NREADS 檔案</span><span data-lang="en">D. Writes the result to a file named NREADS</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="1" data-explain-zh="bash -x 開啟 trace，每個指令展開後印出來，是除錯首選。" data-explain-en="bash -x enables tracing — prints every expanded command. The go-to debugging mode.">
+<p data-lang="zh">3. 用什麼指令最能看清楚 script 是在哪一行卡住？</p>
+<p data-lang="en">3. Which command best shows where a script is hanging?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><code>bash -e run.sh</code></div>
+<div class="quiz-opt" data-idx="1"><code>bash -x run.sh</code></div>
+<div class="quiz-opt" data-idx="2"><code>bash -n run.sh</code></div>
+<div class="quiz-opt" data-idx="3"><code>bash --quiet run.sh</code></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="3" data-explain-zh="變數一定要加雙引號（"$fq"），否則檔名含空白會被切成多個參數，是 NGS 檔名常見災難。" data-explain-en="Always quote variables ("$fq") — unquoted filenames with spaces split into many args (a classic NGS disaster).">
+<p data-lang="zh">4. 為什麼在 Bash 裡用變數要加雙引號（"$fq" 而不是 $fq）？</p>
+<p data-lang="en">4. Why quote a variable as "$fq" instead of $fq?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 雙引號比較好看</span><span data-lang="en">A. It looks nicer</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. 雙引號加快 script 執行</span><span data-lang="en">B. Quotes make scripts faster</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. Bash 規定必須加</span><span data-lang="en">C. Bash requires it</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 防止檔名含空白被當成多個參數</span><span data-lang="en">D. Prevents space-containing filenames from splitting into multiple args</span></div>
+</div><div class="quiz-feedback"></div></div>
+</section>
+
+<nav class="page-nav">
+  <a href="mapping.html"><span class="nav-dir" data-zh="← 上一章" data-en="← Previous">← 上一章</span><span class="nav-title">Ch 11: Mapping & SAM/BAM</span></a>
+  <a href="workflow.html"><span class="nav-dir" data-zh="下一章 →" data-en="Next →">下一章 →</span><span class="nav-title">Ch 13: Snakemake / Nextflow</span></a>
+</nav>
+</main>
+<footer class="site-footer">© Charlene — Linux for Bioinformatics Interactive Tutorial</footer>
+<script src="i18n.js"></script>
+<script src="common.js"></script>
+<script>
+TermSim.create('t-bash',{
+  prompt:'student@bio:~$',
+  title:'bash-script-sandbox',
+  banner:'A pre-loaded run_qc.sh script. Try: cat run_qc.sh / bash run_qc.sh / bash -x run_qc.sh / echo $?',
+  validate:function(cmd){
+    const c=cmd.trim();
+    const RUN_QC=
+'#!/usr/bin/env bash\n'+
+'set -euo pipefail\n'+
+'IFS=$\'\\n\\t\'\n'+
+'RAW_DIR="raw_data"\n'+
+'OUT_DIR="results/fastqc"\n'+
+'LOG_DIR="logs"\n'+
+'mkdir -p "$OUT_DIR" "$LOG_DIR"\n'+
+'for fq in "$RAW_DIR"/*.fastq.gz; do\n'+
+'  sample=$(basename "$fq" .fastq.gz)\n'+
+'  echo "[$(date)] FastQC on $sample"\n'+
+'  fastqc "$fq" -o "$OUT_DIR" --threads 8 >> "$LOG_DIR/fastqc.log" 2>&1\n'+
+'done\n'+
+'multiqc "$OUT_DIR" -o "$OUT_DIR"\n'+
+'echo "[$(date)] Done."\n';
+    if(c==='cat run_qc.sh') return {ok:true,out:RUN_QC};
+    if(c==='ls') return {ok:true,out:'run_qc.sh  raw_data/  results/  logs/'};
+    if(c==='bash run_qc.sh') return {ok:true,out:'[Sat May 02 10:00:00] FastQC on sampleA_R1\n[Sat May 02 10:00:08] FastQC on sampleA_R2\n[Sat May 02 10:00:16] FastQC on sampleB_R1\n[Sat May 02 10:00:24] FastQC on sampleB_R2\n... multiqc aggregating ...\n[Sat May 02 10:00:32] Done.'};
+    if(c==='bash -x run_qc.sh') return {ok:true,out:'+ IFS=$\'\\n\\t\'\n+ RAW_DIR=raw_data\n+ OUT_DIR=results/fastqc\n+ LOG_DIR=logs\n+ mkdir -p results/fastqc logs\n+ for fq in "$RAW_DIR"/*.fastq.gz\n+ basename raw_data/sampleA_R1.fastq.gz .fastq.gz\n++ basename raw_data/sampleA_R1.fastq.gz .fastq.gz\n+ sample=sampleA_R1\n+ date\n+ echo \'[Sat May 02 10:00:00] FastQC on sampleA_R1\'\n+ fastqc raw_data/sampleA_R1.fastq.gz -o results/fastqc --threads 8\n... (every command traced)'};
+    if(c==='bash -n run_qc.sh') return {ok:true,out:'(syntax OK)'};
+    if(c==='echo $?') return {ok:true,out:'0'};
+    if(c==='chmod +x run_qc.sh') return {ok:true,out:'(executable bit set)'};
+    if(c==='./run_qc.sh') return {ok:true,out:'(runs the same as bash run_qc.sh once chmod +x is done)'};
+    if(c==='clear'){document.querySelector('[data-term-id="t-bash"] .terminal-body').innerHTML='';return {ok:true,out:''};}
+    return {ok:false,err:true,out:'sh: '+c+': try cat run_qc.sh / bash run_qc.sh / bash -x run_qc.sh / echo $?'};
+  }
+});
+</script>
+</body></html>

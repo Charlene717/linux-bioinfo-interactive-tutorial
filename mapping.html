@@ -1,0 +1,201 @@
+<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Ch 11: Mapping & SAM/BAM — Linux Tutorial</title>
+<link rel="stylesheet" href="styles.css">
+</head><body>
+<nav class="top-nav"><div class="top-nav-inner">
+  <a href="index.html" class="top-nav-brand"><span>🐧</span> <span data-zh="Linux 生資教學" data-en="Linux for Bioinfo">Linux 生資教學</span></a>
+  <ul class="top-nav-links">
+    <li><a href="intro.html">Intro</a></li><li><a href="filesystem.html">Shell</a></li><li><a href="file-ops.html">Files</a></li><li><a href="text-streams.html">Streams</a></li><li><a href="grep-cut-sort.html">grep/cut</a></li><li><a href="awk-sed.html">awk/sed</a></li><li><a href="download-compress.html">Net/Zip</a></li><li><a href="conda.html">Conda</a></li><li><a href="bio-formats.html">Formats</a></li><li><a href="ngs-qc.html">QC</a></li><li><a href="mapping.html" class="active">Mapping</a></li><li><a href="bash-scripting.html">Bash</a></li><li><a href="workflow.html">Workflow</a></li><li><a href="hpc-container.html">HPC</a></li>
+  </ul>
+</div></nav>
+<div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
+<header class="page-hero"><div class="step-badge">CHAPTER 11 / 14</div>
+<h1 data-zh="Mapping 與 SAM/BAM 處理" data-en="Mapping & SAM/BAM Handling">Mapping 與 SAM/BAM 處理</h1>
+<p class="subtitle" data-lang="zh">bwa-mem2 / hisat2 / minimap2 — alignment 三大工具；samtools sort / index / flagstat — BAM 整理三件套。</p>
+<p class="subtitle" data-lang="en">bwa-mem2 / hisat2 / minimap2 — the alignment trio; samtools sort / index / flagstat — the BAM tidy trio.</p>
+</header>
+<main class="content-wrap">
+
+<section class="section">
+<div class="section-label" data-zh="工具選擇" data-en="TOOL CHOICE">工具選擇</div>
+<h2 data-zh="aligner 該選哪一個？" data-en="Which aligner should I pick?">aligner 該選哪一個？</h2>
+<table class="comp-table">
+<thead><tr><th data-zh="工具" data-en="Tool">工具</th><th data-zh="適用" data-en="Use case">適用</th><th data-zh="優點" data-en="Pros">優點</th></tr></thead>
+<tbody>
+<tr><td><strong>bwa-mem2</strong></td><td data-zh="DNA short reads（150bp Illumina）" data-en="DNA short reads (150bp Illumina)">DNA short reads</td><td data-zh="準確、快、社群最廣；variant calling 標準" data-en="Accurate, fast, ubiquitous; variant-calling standard">準確、社群最廣</td></tr>
+<tr><td><strong>HISAT2 / STAR</strong></td><td data-zh="RNA-seq（splice-aware）" data-en="RNA-seq (splice-aware)">RNA-seq</td><td data-zh="支援 splice junction；STAR 適合 fusion，HISAT2 較省記憶體" data-en="Splice-aware; STAR for fusion, HISAT2 lighter on RAM">支援 splice</td></tr>
+<tr><td><strong>minimap2</strong></td><td data-zh="長讀（PacBio HiFi、Nanopore）；splice-aware；overlap" data-en="Long reads (PacBio HiFi, Nanopore); splice-aware; overlap">長讀 / 多模式</td><td data-zh="多模式：sr / map-ont / map-hifi / splice / asm5" data-en="Many presets: sr / map-ont / map-hifi / splice / asm5">多模式預設</td></tr>
+<tr><td><strong>salmon / kallisto</strong></td><td data-zh="RNA-seq pseudoalignment（直接量化）" data-en="RNA-seq pseudoalignment (direct quantification)">RNA-seq 量化</td><td data-zh="速度極快、不產生 BAM；轉錄本層級量化" data-en="Very fast, no BAM, transcript-level quantification">速度極快、不產生 BAM</td></tr>
+</tbody></table>
+</section>
+
+<!-- Alignment pipeline -->
+<section class="section">
+<div class="section-label" data-zh="標準流程" data-en="STANDARD PIPELINE">標準流程</div>
+<h2 data-zh="從 FASTQ 到 sorted+indexed BAM" data-en="From FASTQ to sorted + indexed BAM">從 FASTQ 到 sorted+indexed BAM</h2>
+<div class="code-tabs">
+<div class="code-tab-btns">
+<button class="code-tab-btn active" onclick="switchTab(this,'m1')">bwa-mem2 (DNA)</button>
+<button class="code-tab-btn" onclick="switchTab(this,'m2')">HISAT2 (RNA)</button>
+<button class="code-tab-btn" onclick="switchTab(this,'m3')">minimap2 (long)</button>
+</div>
+<div class="code-tab-content active" id="m1"><pre><span class="comment"># 1. 建 index（一次性）/ Build index (one-off)</span>
+<span class="func">bwa-mem2</span> index reference/genome.fa
+
+<span class="comment"># 2. align + 排序 + 建索引（pipe 一條龍）
+# Align + sort + index (one pipe)</span>
+<span class="func">bwa-mem2</span> mem -t <span class="num">8</span> -R <span class="str">"@RG\tID:sampleA\tSM:sampleA\tPL:ILLUMINA"</span> \
+    reference/genome.fa \
+    raw_data/sampleA_R1.fastq.gz raw_data/sampleA_R2.fastq.gz \
+  <span class="op">|</span> <span class="func">samtools</span> sort -@ <span class="num">4</span> -o results/bam/sampleA.sorted.bam -
+<span class="func">samtools</span> index results/bam/sampleA.sorted.bam</pre></div>
+<div class="code-tab-content" id="m2"><pre><span class="comment"># 1. 建 HISAT2 index（含 splice 資訊）/ Build with splice sites</span>
+<span class="func">hisat2-build</span> reference/genome.fa reference/hisat2_index
+
+<span class="comment"># 2. RNA align</span>
+<span class="func">hisat2</span> -p <span class="num">8</span> -x reference/hisat2_index \
+    -1 raw_data/sampleA_R1.fastq.gz -2 raw_data/sampleA_R2.fastq.gz \
+    --rna-strandness RF \
+    --summary-file logs/hisat2_sampleA.log \
+  <span class="op">|</span> <span class="func">samtools</span> sort -@ <span class="num">4</span> -o results/bam/sampleA.sorted.bam -
+<span class="func">samtools</span> index results/bam/sampleA.sorted.bam</pre></div>
+<div class="code-tab-content" id="m3"><pre><span class="comment"># Nanopore long reads
+# Use map-ont preset; -ax outputs SAM</span>
+<span class="func">minimap2</span> -t <span class="num">8</span> -ax map-ont reference/genome.fa nanopore.fastq.gz \
+  <span class="op">|</span> <span class="func">samtools</span> sort -@ <span class="num">4</span> -o results/bam/nanopore.sorted.bam -
+<span class="func">samtools</span> index results/bam/nanopore.sorted.bam
+
+<span class="comment"># PacBio HiFi 用 -ax map-hifi；splice-aware 用 -ax splice
+# Splice-aware long-read alignment uses -ax splice</span></pre></div>
+</div>
+<div class="callout tip"><span class="callout-icon">💡</span><div>
+<p data-lang="zh"><strong>關鍵：</strong>把 <code>aligner | samtools sort</code> 用 pipe 串起來——避免產出中間 SAM 檔（純文字會很大）。<code>samtools sort</code> 的 <code>-</code> 表示從 stdin 讀入。</p>
+<p data-lang="en"><strong>Key trick:</strong> pipe <code>aligner | samtools sort</code> directly — avoids the huge intermediate SAM. The <code>-</code> in <code>samtools sort -</code> means read from stdin.</p>
+</div></div>
+</section>
+
+<!-- samtools cheat -->
+<section class="section">
+<div class="section-label" data-zh="速查表" data-en="CHEAT SHEET">速查表</div>
+<h2><code>samtools</code> — <span data-zh="BAM 操作主力" data-en="the BAM workhorse">BAM 操作主力</span></h2>
+<div class="cheat">
+<div class="cheat-cmd">samtools view -h a.bam | head</div><div class="cheat-desc" data-zh="讀 BAM 為文字（-h 含 header）" data-en="Read BAM as text (-h includes header)">看 BAM 內容</div>
+<div class="cheat-cmd">samtools view -c a.bam</div><div class="cheat-desc" data-zh="計算 alignment 總數" data-en="Count total alignments">總 alignment 數</div>
+<div class="cheat-cmd">samtools view -c -f 4 a.bam</div><div class="cheat-desc" data-zh="未 mapped 的 read（FLAG 含 4）" data-en="Unmapped reads (FLAG bit 4)">未 mapped 的 reads</div>
+<div class="cheat-cmd">samtools view -c -F 4 a.bam</div><div class="cheat-desc" data-zh="-F：排除；已 mapped 的 read 數" data-en="-F: exclude; mapped reads">已 mapped 的 reads</div>
+<div class="cheat-cmd">samtools sort -@ 8 -o sorted.bam a.bam</div><div class="cheat-desc" data-zh="按位置排序（-@ 8 = 8 threads）" data-en="Coordinate sort (-@ 8 = 8 threads)">按位置排序</div>
+<div class="cheat-cmd">samtools index sorted.bam</div><div class="cheat-desc" data-zh="建立 .bai 索引（隨機存取必要）" data-en="Build .bai (required for region access)">建立索引</div>
+<div class="cheat-cmd">samtools flagstat a.bam</div><div class="cheat-desc" data-zh="alignment 摘要：mapped、proper pair、duplicates..." data-en="Alignment summary: mapped, proper-pair, duplicates...">alignment 摘要</div>
+<div class="cheat-cmd">samtools idxstats sorted.bam</div><div class="cheat-desc" data-zh="每個 chrom 的 read 數" data-en="Read counts per chromosome">每 chrom 的 read 數</div>
+<div class="cheat-cmd">samtools view -b -q 30 a.bam &gt; mq30.bam</div><div class="cheat-desc" data-zh="MAPQ ≥ 30 的 reads；-b 輸出為 BAM" data-en="Reads with MAPQ ≥ 30; -b output as BAM">高 MAPQ 過濾</div>
+<div class="cheat-cmd">samtools view sorted.bam chr1:10000-20000</div><div class="cheat-desc" data-zh="抽特定 region（需先索引）" data-en="Extract a region (requires .bai)">抽特定 region</div>
+<div class="cheat-cmd">samtools markdup -@ 8 in.bam out.bam</div><div class="cheat-desc" data-zh="標記 PCR/optical duplicates" data-en="Mark PCR / optical duplicates">標記 duplicates</div>
+</div>
+</section>
+
+<!-- FLAG -->
+<section class="section">
+<div class="section-label" data-zh="FLAG 解讀" data-en="FLAGS">FLAG 解讀</div>
+<h2 data-zh="SAM FLAG — 用位元位記錄 alignment 屬性" data-en="SAM FLAG — bit-encoded alignment attributes">SAM FLAG — 用位元位記錄 alignment 屬性</h2>
+<div data-lang="zh"><p>FLAG 是個整數，每個 bit 代表一個屬性。常見的：</p></div>
+<div data-lang="en"><p>FLAG is an integer where each bit encodes a property. Common ones:</p></div>
+<div class="flag-glossary">
+  <div class="flag-item"><code>1 (0x1)</code><p data-zh="paired" data-en="read is paired">paired</p></div>
+  <div class="flag-item"><code>2 (0x2)</code><p data-zh="proper pair（兩 read 位置 OK）" data-en="proper pair">proper pair</p></div>
+  <div class="flag-item"><code>4 (0x4)</code><p data-zh="unmapped" data-en="unmapped">unmapped</p></div>
+  <div class="flag-item"><code>8 (0x8)</code><p data-zh="mate unmapped" data-en="mate unmapped">mate unmapped</p></div>
+  <div class="flag-item"><code>16 (0x10)</code><p data-zh="reverse strand" data-en="reverse strand">reverse strand</p></div>
+  <div class="flag-item"><code>256 (0x100)</code><p data-zh="secondary alignment" data-en="secondary alignment">secondary</p></div>
+  <div class="flag-item"><code>1024 (0x400)</code><p data-zh="PCR / optical duplicate" data-en="PCR/optical duplicate">duplicate</p></div>
+  <div class="flag-item"><code>2048 (0x800)</code><p data-zh="supplementary（chimeric）" data-en="supplementary (chimeric)">supplementary</p></div>
+</div>
+<div class="callout tip"><span class="callout-icon">💡</span><div>
+<p data-lang="zh">FLAG 解碼太麻煩？用 <a href="https://broadinstitute.github.io/picard/explain-flags.html" target="_blank" rel="noopener">Broad 的 Explain Flags 頁面</a>，或在 terminal 中輸入 <code>samtools flags 99</code>。</p>
+<p data-lang="en">Decoding FLAGs is annoying — use the <a href="https://broadinstitute.github.io/picard/explain-flags.html" target="_blank" rel="noopener">Broad Explain Flags page</a> or run <code>samtools flags 99</code> in the terminal.</p>
+</div></div>
+</section>
+
+<!-- Hands-on -->
+<section class="section">
+<div class="section-label" data-zh="動手做" data-en="HANDS-ON">動手做</div>
+<h2 data-zh="互動：BAM 處理練習" data-en="Interactive: BAM tidy practice">互動：BAM 處理練習</h2>
+<div class="interactive-panel">
+<div data-term-id="t-bam"></div>
+</div>
+</section>
+
+<!-- Quiz -->
+<section class="quiz-section">
+<h3>📝 <span data-zh="自我檢測" data-en="Self-Check">自我檢測</span></h3>
+<div class="quiz-q" data-answer="2" data-explain-zh="HISAT2 / STAR 是 splice-aware，能正確處理 RNA-seq 的 exon-junction reads。" data-explain-en="HISAT2 / STAR are splice-aware — they handle RNA-seq junction reads correctly.">
+<p data-lang="zh">1. RNA-seq 為什麼不能用 bwa-mem 而要用 HISAT2 / STAR？</p>
+<p data-lang="en">1. Why use HISAT2 / STAR for RNA-seq instead of bwa-mem?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. bwa-mem 不支援 paired-end</span><span data-lang="en">A. bwa-mem doesn't support paired-end</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. HISAT2 比較快</span><span data-lang="en">B. HISAT2 is faster</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. RNA reads 跨 exon-junction，需 splice-aware aligner</span><span data-lang="en">C. RNA reads span exon junctions; needs a splice-aware aligner</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. bwa-mem 不能讀 .gz</span><span data-lang="en">D. bwa-mem can't read .gz</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="1" data-explain-zh="aligner | samtools sort | samtools index 是標準做法；中間 SAM 檔常常超大，pipe 才是正解。" data-explain-en="aligner | samtools sort | samtools index is the canonical chain — avoids huge intermediate SAM.">
+<p data-lang="zh">2. 為什麼要把 aligner 與 samtools sort 用 pipe 串起來？</p>
+<p data-lang="en">2. Why pipe the aligner directly into samtools sort?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 兩者沒辦法分開跑</span><span data-lang="en">A. They can't run separately</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. 避免產出超大的中間 SAM 檔，省 I/O 與磁碟</span><span data-lang="en">B. Avoid the huge intermediate SAM file — save disk and I/O</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. samtools 必須讀 stdin</span><span data-lang="en">C. samtools only reads stdin</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. pipe 比較快但結果不同</span><span data-lang="en">D. Pipes are faster but produce different results</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="3" data-explain-zh="samtools index 建立 .bai 才能依 region 隨機存取；隨機抽取 region 才合理。" data-explain-en="samtools index creates the .bai needed for random region access.">
+<p data-lang="zh">3. <code>samtools view sorted.bam chr1:10000-20000</code> 跑出錯誤「random access is not supported」。原因？</p>
+<p data-lang="en">3. <code>samtools view sorted.bam chr1:10000-20000</code> fails with "random access is not supported". Why?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. samtools 太舊</span><span data-lang="en">A. samtools is too old</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. region 寫法錯</span><span data-lang="en">B. Wrong region syntax</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. BAM 沒排序</span><span data-lang="en">C. BAM not sorted</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 缺少 <code>.bai</code> 索引（要先 <code>samtools index</code>）</span><span data-lang="en">D. Missing <code>.bai</code> index — run <code>samtools index</code> first</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="0" data-explain-zh="-f 4 過濾出 FLAG 含 4 的（unmapped）；-F 4 排除這些（mapped only）。" data-explain-en="-f 4 keeps reads with FLAG bit 4 set (unmapped); -F 4 excludes them (mapped only).">
+<p data-lang="zh">4. <code>samtools view -c -F 4 a.bam</code> 計算的是？</p>
+<p data-lang="en">4. What does <code>samtools view -c -F 4 a.bam</code> count?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. mapped reads 數</span><span data-lang="en">A. Number of mapped reads</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. unmapped reads 數</span><span data-lang="en">B. Number of unmapped reads</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. duplicates 數</span><span data-lang="en">C. Number of duplicates</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 第 4 個 read</span><span data-lang="en">D. The 4th read</span></div>
+</div><div class="quiz-feedback"></div></div>
+</section>
+
+<nav class="page-nav">
+  <a href="ngs-qc.html"><span class="nav-dir" data-zh="← 上一章" data-en="← Previous">← 上一章</span><span class="nav-title">Ch 10: NGS QC</span></a>
+  <a href="bash-scripting.html"><span class="nav-dir" data-zh="下一章 →" data-en="Next →">下一章 →</span><span class="nav-title">Ch 12: Bash Scripting</span></a>
+</nav>
+</main>
+<footer class="site-footer">© Charlene — Linux for Bioinformatics Interactive Tutorial</footer>
+<script src="i18n.js"></script>
+<script src="common.js"></script>
+<script>
+TermSim.create('t-bam',{
+  prompt:'student@bio:~/results/bam$',
+  title:'samtools-sandbox',
+  banner:'A simulated sampleA.sorted.bam (1,000,000 alignments). Try samtools flagstat / view -c / idxstats.',
+  validate:function(cmd){
+    const c=cmd.trim();
+    if(c==='samtools flagstat sampleA.sorted.bam') return {ok:true,out:'1000000 + 0 in total (QC-passed reads + QC-failed reads)\n0 + 0 secondary\n2300 + 0 supplementary\n45000 + 0 duplicates\n0 + 0 primary duplicates\n984500 + 0 mapped (98.45% : N/A)\n982200 + 0 primary mapped (98.22% : N/A)\n997700 + 0 paired in sequencing\n498850 + 0 read1\n498850 + 0 read2\n950000 + 0 properly paired (95.21% : N/A)\n980000 + 0 with itself and mate mapped\n2200 + 0 singletons (0.22% : N/A)'};
+    if(c==='samtools view -c sampleA.sorted.bam') return {ok:true,out:'1000000'};
+    if(c==='samtools view -c -f 4 sampleA.sorted.bam') return {ok:true,out:'15500'};
+    if(c==='samtools view -c -F 4 sampleA.sorted.bam') return {ok:true,out:'984500'};
+    if(c==='samtools idxstats sampleA.sorted.bam') return {ok:true,out:'chr1\t248956422\t78930\t1240\nchr2\t242193529\t76421\t1180\nchr3\t198295559\t63800\t950\nchrX\t156040895\t49120\t720\nchrY\t57227415\t10800\t330\nchrM\t16569\t1240\t0\n*\t0\t0\t15500'};
+    if(c==='samtools view sampleA.sorted.bam chr1:10000-20000') return {ok:true,out:'SRR.5\t99\tchr1\t10312\t60\t150M\t=\t10612\t450\tACGT...\nSRR.6\t147\tchr1\t10612\t60\t150M\t=\t10312\t-450\tCGTA...\n... (15 alignments)'};
+    if(c==='samtools index sampleA.sorted.bam') return {ok:true,out:'(index built: sampleA.sorted.bam.bai)'};
+    if(c==='samtools sort -o sampleA.sorted.bam sampleA.bam') return {ok:true,out:'(simulated: sorted by coordinate, ~10s on 100M reads)'};
+    if(c.startsWith('samtools view -h ')) return {ok:true,out:'@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:248956422\n@SQ\tSN:chr2\tLN:242193529\n@PG\tID:bwa-mem2\tVN:2.2\tCL:bwa-mem2 mem ...\nSRR.1\t99\tchr1\t10001\t60\t150M\t=\t10301\t450\tAGCT...\n...'};
+    if(c==='ls') return {ok:true,out:'sampleA.sorted.bam  sampleA.sorted.bam.bai'};
+    if(c==='clear'){document.querySelector('[data-term-id="t-bam"] .terminal-body').innerHTML='';return {ok:true,out:''};}
+    return {ok:false,err:true,out:'sh: '+c+': try samtools flagstat / view -c / idxstats / view region (sampleA.sorted.bam)'};
+  }
+});
+</script>
+</body></html>

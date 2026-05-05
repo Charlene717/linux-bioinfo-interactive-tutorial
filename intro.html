@@ -1,0 +1,221 @@
+<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Ch 1: Why Linux for Bioinformatics — Linux Tutorial</title>
+<link rel="stylesheet" href="styles.css">
+</head><body>
+<nav class="top-nav"><div class="top-nav-inner">
+  <a href="index.html" class="top-nav-brand"><span>🐧</span> <span data-zh="Linux 生資教學" data-en="Linux for Bioinfo">Linux 生資教學</span></a>
+  <ul class="top-nav-links">
+    <li><a href="intro.html" class="active">Intro</a></li>
+    <li><a href="filesystem.html">Shell</a></li>
+    <li><a href="file-ops.html">Files</a></li>
+    <li><a href="text-streams.html">Streams</a></li>
+    <li><a href="grep-cut-sort.html">grep/cut</a></li>
+    <li><a href="awk-sed.html">awk/sed</a></li>
+    <li><a href="download-compress.html">Net/Zip</a></li>
+    <li><a href="conda.html">Conda</a></li>
+    <li><a href="bio-formats.html">Formats</a></li>
+    <li><a href="ngs-qc.html">QC</a></li>
+    <li><a href="mapping.html">Mapping</a></li>
+    <li><a href="bash-scripting.html">Bash</a></li>
+    <li><a href="workflow.html">Workflow</a></li>
+    <li><a href="hpc-container.html">HPC</a></li>
+  </ul>
+</div></nav>
+<div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
+<header class="page-hero"><div class="step-badge">CHAPTER 1 / 14</div>
+<h1 data-zh="為什麼生物資訊需要 Linux？" data-en="Why Does Bioinformatics Need Linux?">為什麼生物資訊需要 Linux？</h1>
+<p class="subtitle" data-lang="zh">先建立全局觀：Linux 在 NGS 分析、HPC 計算與可重現研究中的角色，以及這門課程的學習地圖。</p>
+<p class="subtitle" data-lang="en">Start with the big picture: Linux's role in NGS analysis, HPC computing and reproducible research — and your learning roadmap.</p>
+</header>
+<main class="content-wrap">
+
+<!-- ===== Section 1: Why Linux ===== -->
+<section class="section">
+<div class="section-label" data-zh="為什麼" data-en="WHY">為什麼</div>
+<h2 data-zh="為什麼生物資訊幾乎全部跑在 Linux 上？" data-en="Why does bioinformatics live almost entirely on Linux?">為什麼生物資訊幾乎全部跑在 Linux 上？</h2>
+<div data-lang="zh">
+<p>當你拿到一份 NGS 資料，常見場景是：FASTQ 檔總計 80 GB、reference genome 3 GB、要跑 alignment、samtools sort、picard、GATK，整段流程要跑 6 小時、要記錄 log、要重跑、要在 cluster 上跑——這些工作幾乎全部依賴 Linux。</p>
+<p>Linux 在生物資訊中如此普及，並不是偶然，而是因為它在四個面向上特別契合 NGS 分析的需求：</p>
+</div>
+<div data-lang="en">
+<p>You receive an NGS dataset: 80 GB of FASTQ, a 3 GB reference genome. You need to run alignment, samtools sort, Picard, GATK — six hours of pipeline with logs, reruns, and possibly a cluster. Almost all of this lives on Linux.</p>
+<p>Linux dominates bioinformatics for four reasons that align almost perfectly with what NGS analysis demands:</p>
+</div>
+<div class="card-grid cols-2">
+  <div class="card"><div class="card-icon">🛠️</div><h4 data-zh="① 工具生態系" data-en="① Tool Ecosystem">① 工具生態系</h4>
+    <p data-lang="zh">幾乎所有主流工具（BWA、samtools、bedtools、GATK、Salmon、STAR、Bowtie2、bcftools…）都以 Linux 為主要平台，許多甚至只有 Linux 版本。</p>
+    <p data-lang="en">Nearly every major tool (BWA, samtools, bedtools, GATK, Salmon, STAR, Bowtie2, bcftools…) is built first — and often only — for Linux.</p></div>
+  <div class="card"><div class="card-icon">⚡</div><h4 data-zh="② 文字處理威力" data-en="② Text Power">② 文字處理威力</h4>
+    <p data-lang="zh">FASTQ、SAM、VCF、GTF 本質上都是大型文字檔。Linux 的 grep / awk / sed / pipe 能用一行指令處理 TB 級資料。</p>
+    <p data-lang="en">FASTQ, SAM, VCF, GTF are all big text files. Linux's grep / awk / sed / pipes process TB-scale data in a single line.</p></div>
+  <div class="card"><div class="card-icon">🖧</div><h4 data-zh="③ HPC 與雲端原生" data-en="③ HPC & Cloud Native">③ HPC 與雲端原生</h4>
+    <p data-lang="zh">所有主流超級電腦與生物資訊計算節點 99% 跑 Linux。Slurm、PBS、SGE、AWS Batch 都是 Linux 環境。</p>
+    <p data-lang="en">99% of supercomputers and bioinformatics compute nodes run Linux. Slurm, PBS, SGE, AWS Batch — all Linux.</p></div>
+  <div class="card"><div class="card-icon">🔁</div><h4 data-zh="④ 可重現性" data-en="④ Reproducibility">④ 可重現性</h4>
+    <p data-lang="zh">conda、Docker、Apptainer、Snakemake、Nextflow 都圍繞 Linux 設計，是科研可重現的核心基礎建設。</p>
+    <p data-lang="en">conda, Docker, Apptainer, Snakemake, Nextflow are all designed around Linux — the core infrastructure of reproducible science.</p></div>
+</div>
+<div class="callout tip"><span class="callout-icon">💡</span><div>
+  <p data-lang="zh"><strong>核心觀念：</strong>學 Linux 不是為了「會用 Linux」，而是為了「能在現代生物資訊環境中工作」。Wet-lab 出身、第一次看到 terminal 的研究人員，往往最大的障礙不是指令，而是「不知道為什麼要打字而不是用滑鼠點」。當你理解了上面四個原因，學習動機就會穩定下來。</p>
+  <p data-lang="en"><strong>The key idea:</strong> learning Linux is not about knowing Linux — it's about being able to work in a modern bioinformatics environment. The biggest obstacle for wet-lab researchers seeing a terminal for the first time is rarely the commands; it's the question "why type when I can click?" Once those four reasons click, the motivation stabilises.</p>
+</div></div>
+</section>
+
+<!-- ===== Section 2: GUI vs CLI ===== -->
+<section class="section">
+<div class="section-label" data-zh="觀念" data-en="CONCEPT">觀念</div>
+<h2 data-zh="GUI 與 CLI 的差別 — 為什麼要用「黑黑的視窗」？" data-en="GUI vs CLI — why the black window?">GUI 與 CLI 的差別 — 為什麼要用「黑黑的視窗」？</h2>
+<table class="comp-table">
+<thead><tr><th data-zh="面向" data-en="Aspect">面向</th><th data-zh="GUI（圖形介面）" data-en="GUI (graphical)">GUI（圖形介面）</th><th data-zh="CLI（命令列）" data-en="CLI (command line)">CLI（命令列）</th></tr></thead>
+<tbody>
+  <tr><td><strong data-zh="操作方式" data-en="Operation">操作方式</strong></td>
+      <td data-zh="滑鼠點擊、視覺化" data-en="Mouse clicks, visual">滑鼠點擊、視覺化</td>
+      <td data-zh="輸入文字指令" data-en="Type text commands">輸入文字指令</td></tr>
+  <tr><td><strong data-zh="批次處理" data-en="Batch">批次處理</strong></td>
+      <td data-zh="需重複手動點擊" data-en="Repeat clicks manually">需重複手動點擊</td>
+      <td data-zh="用 loop 一行搞定 100 個樣本" data-en="A one-line loop handles 100 samples">用 loop 一行搞定 100 個樣本</td></tr>
+  <tr><td><strong data-zh="可重現性" data-en="Reproducible">可重現性</strong></td>
+      <td data-zh="很難記錄「按了哪些」" data-en="Hard to record what was clicked">很難記錄「按了哪些」</td>
+      <td data-zh="指令本身就是文件 + 紀錄" data-en="The command is the documentation">指令本身就是文件 + 紀錄</td></tr>
+  <tr><td><strong data-zh="遠端執行" data-en="Remote">遠端執行</strong></td>
+      <td data-zh="通常無法或極慢" data-en="Usually impossible or slow">通常無法或極慢</td>
+      <td data-zh="SSH 連線即可，輕量高速" data-en="SSH and go — light and fast">SSH 連線即可，輕量高速</td></tr>
+  <tr><td><strong data-zh="自動化" data-en="Automation">自動化</strong></td>
+      <td data-zh="需要額外巨集或軟體" data-en="Needs macros / extra software">需要額外巨集或軟體</td>
+      <td data-zh="天然可寫成 script、cron、pipeline" data-en="Natural fit for scripts, cron, pipelines">天然可寫成 script、cron、pipeline</td></tr>
+</tbody></table>
+<div class="callout warn"><span class="callout-icon">⚠️</span><div>
+<p data-lang="zh">許多研究人員希望「用 Excel 處理 FASTQ」——但 Excel 連 1,048,576 列以上的資料都打不開，更別提 30 GB 的 fastq.gz。Linux 命令列不是復古，而是大型生物資料的<strong>唯一可行</strong>處理方式之一。</p>
+<p data-lang="en">Many researchers wish they could open FASTQ in Excel — but Excel chokes past 1,048,576 rows, never mind a 30 GB fastq.gz. The Linux command line isn't retro: for large biological data it's one of the <strong>only</strong> viable interfaces.</p>
+</div></div>
+</section>
+
+<!-- ===== Section 3: NGS Project Tree ===== -->
+<section class="section">
+<div class="section-label" data-zh="實作場景" data-en="REAL-WORLD">實作場景</div>
+<h2 data-zh="一個典型的 NGS 分析專案長什麼樣？" data-en="What does a typical NGS project look like?">一個典型的 NGS 分析專案長什麼樣？</h2>
+<div data-lang="zh"><p>從第一週開始，我們就會用「真實的 NGS 專案結構」來教 Linux，而不是抽象的 <code>file1.txt</code>、<code>file2.txt</code>。下面這個資料夾結構，會貫穿整門課程：</p></div>
+<div data-lang="en"><p>From day one, we teach Linux with a real NGS project layout — not abstract <code>file1.txt</code>, <code>file2.txt</code>. The directory tree below is the spine of the entire course:</p></div>
+<pre class="fs-tree"><span class="dir">project/</span>
+├── <span class="dir">raw_data/</span>           <span class="hi"><span data-zh="# 原始 FASTQ（不要動！）" data-en="# Raw FASTQ — never modify"># 原始 FASTQ（不要動！）</span></span>
+│   ├── <span class="file">sampleA_R1.fastq.gz</span>
+│   ├── <span class="file">sampleA_R2.fastq.gz</span>
+│   ├── <span class="file">sampleB_R1.fastq.gz</span>
+│   └── <span class="file">sampleB_R2.fastq.gz</span>
+├── <span class="dir">metadata/</span>           <span data-zh="# 樣本資訊、實驗設計" data-en="# Sample info, experimental design"># 樣本資訊、實驗設計</span>
+│   └── <span class="file">samples.tsv</span>
+├── <span class="dir">reference/</span>          <span data-zh="# 參考基因體與 annotation" data-en="# Reference genome and annotation"># 參考基因體與 annotation</span>
+│   ├── <span class="file">genome.fa</span>
+│   └── <span class="file">genes.gtf</span>
+├── <span class="dir">scripts/</span>            <span data-zh="# 自己的分析腳本" data-en="# Your analysis scripts"># 自己的分析腳本</span>
+│   └── <span class="file">run_fastqc.sh</span>
+├── <span class="dir">results/</span>            <span data-zh="# 所有產出" data-en="# All outputs"># 所有產出</span>
+│   ├── <span class="dir">fastqc/</span>
+│   ├── <span class="dir">bam/</span>
+│   └── <span class="file">multiqc_report.html</span>
+├── <span class="dir">logs/</span>               <span data-zh="# 工具執行紀錄" data-en="# Tool execution logs"># 工具執行紀錄</span>
+└── <span class="file">README.md</span>           <span data-zh="# 說明、版本、命令" data-en="# Notes, versions, commands"># 說明、版本、命令</span>
+</pre>
+<div class="callout tip"><span class="callout-icon">💡</span><div>
+<p data-lang="zh"><strong>核心原則：</strong>raw_data 永遠唯讀，所有產出都進 results/，所有 log 都進 logs/，所有指令版本都記到 README.md。沒有這個習慣，再強的工具都會被混亂的資料夾吃掉。</p>
+<p data-lang="en"><strong>Core principle:</strong> keep raw_data read-only, send all outputs to results/, all logs to logs/, and record every command in README.md. Without this habit, even the best tools drown in directory chaos.</p>
+</div></div>
+</section>
+
+<!-- ===== Section 4: Roadmap ===== -->
+<section class="section">
+<div class="section-label" data-zh="課程地圖" data-en="ROADMAP">課程地圖</div>
+<h2 data-zh="14 章學習地圖" data-en="The 14-Chapter Roadmap">14 章學習地圖</h2>
+<div class="workflow">
+  <div class="workflow-step" data-step="1"><h4 data-zh="基礎篇 (Ch 1–4)：命令列與檔案系統" data-en="Beginner (Ch 1–4): CLI & Filesystem">基礎篇 (Ch 1–4)：命令列與檔案系統</h4>
+    <p data-lang="zh">學會在 Linux 中找路、看檔、改名、設定權限、用 pipe 處理大型純文字檔。</p>
+    <p data-lang="en">Learn to navigate, read, rename, set permissions and pipe large text files.</p></div>
+  <div class="workflow-step" data-step="2"><h4 data-zh="中階篇 (Ch 5–8)：文字工具與環境管理" data-en="Intermediate (Ch 5–8): Text Tools & Envs">中階篇 (Ch 5–8)：文字工具與環境管理</h4>
+    <p data-lang="zh">grep / awk / sed 處理 GTF、BED、sample sheet；用 conda + Bioconda 管理可重現環境。</p>
+    <p data-lang="en">grep / awk / sed on GTF, BED and sample sheets; conda + Bioconda for reproducible environments.</p></div>
+  <div class="workflow-step" data-step="3"><h4 data-zh="生資應用篇 (Ch 9–11)：真實 NGS 工作流" data-en="Applied (Ch 9–11): Real NGS Work">生資應用篇 (Ch 9–11)：真實 NGS 工作流</h4>
+    <p data-lang="zh">理解 FASTQ / FASTA / GTF / BED / SAM / BAM / VCF 格式；FastQC + MultiQC + samtools 實作。</p>
+    <p data-lang="en">FASTQ / FASTA / GTF / BED / SAM / BAM / VCF formats; FastQC + MultiQC + samtools in practice.</p></div>
+  <div class="workflow-step" data-step="4"><h4 data-zh="進階篇 (Ch 12–14)：自動化、Workflow、HPC" data-en="Advanced (Ch 12–14): Automation, Workflow, HPC">進階篇 (Ch 12–14)：自動化、Workflow、HPC</h4>
+    <p data-lang="zh">把指令寫成 Bash script，再升級到 Snakemake / Nextflow，最後部署到 Slurm 與 container。</p>
+    <p data-lang="en">Promote commands to Bash scripts, then to Snakemake / Nextflow, and finally to Slurm + containers.</p></div>
+</div>
+</section>
+
+<!-- ===== Section 5: First Terminal ===== -->
+<section class="section">
+<div class="section-label" data-zh="第一次互動" data-en="FIRST INTERACTION">第一次互動</div>
+<h2 data-zh="先試試看：你的第一個 terminal" data-en="Try it: your first terminal">先試試看：你的第一個 terminal</h2>
+<div data-lang="zh"><p>下方是一個模擬 terminal。試著輸入 <code>echo hello bioinformatics</code> 然後按 Enter，再輸入 <code>whoami</code>、<code>date</code>。每一個指令的「形狀」都是：<strong>命令 + 空格 + 參數</strong>。</p></div>
+<div data-lang="en"><p>Below is a simulated terminal. Type <code>echo hello bioinformatics</code> and press Enter, then try <code>whoami</code> and <code>date</code>. Every command has the same shape: <strong>command + space + arguments</strong>.</p></div>
+<div class="interactive-panel">
+<div data-term-id="t-intro"></div>
+</div>
+</section>
+
+<!-- ===== Section 6: Quiz ===== -->
+<section class="quiz-section">
+<h3>📝 <span data-zh="自我檢測" data-en="Self-Check">自我檢測</span></h3>
+<div class="quiz-q" data-answer="2" data-explain-zh="HPC、雲端、容器、Bioconda、Snakemake/Nextflow 全部基於 Linux，是真正的原因；其他選項或不正確或不是主因。" data-explain-en="HPC, cloud, containers, Bioconda and Snakemake/Nextflow are all Linux-based — that's the real reason.">
+<p data-lang="zh">1. 為什麼幾乎所有 NGS 工具優先支援 Linux？</p>
+<p data-lang="en">1. Why do nearly all NGS tools prioritise Linux?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. Linux 比較漂亮</span><span data-lang="en">A. Linux looks nicer</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. Linux 是免費的</span><span data-lang="en">B. Linux is free</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. HPC、雲端、容器、開源工具生態系都圍繞 Linux 建置</span><span data-lang="en">C. HPC, cloud, containers and the open-source toolchain are all Linux-centric</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. Linux 沒有病毒</span><span data-lang="en">D. Linux has no viruses</span></div>
+</div>
+<div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="1" data-explain-zh="raw_data 是不可重生的金本位資料，必須唯讀；產出與紀錄要分離。" data-explain-en="Raw data is irreplaceable ground truth — keep it read-only; separate outputs and logs.">
+<p data-lang="zh">2. 在 NGS 專案中，<code>raw_data/</code> 應該如何處理？</p>
+<p data-lang="en">2. How should <code>raw_data/</code> be treated in an NGS project?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. 直接在裡面解壓、改名、刪檔</span><span data-lang="en">A. Decompress, rename and delete files in place</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. 視為唯讀（read-only），所有產出都導到 results/</span><span data-lang="en">B. Treat as read-only; route all outputs to results/</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. 跟 results/ 混在一起方便比較</span><span data-lang="en">C. Mix it with results/ for convenience</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. 上傳到桌面備份</span><span data-lang="en">D. Copy to the desktop as backup</span></div>
+</div>
+<div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="2" data-explain-zh="批次與可重現性是 GUI 最弱的兩件事，CLI 可以一行 loop 處理 100 個樣本並留下完整紀錄。" data-explain-en="Batch and reproducibility are the GUI's weakest points; one CLI loop handles 100 samples and leaves a full record.">
+<p data-lang="zh">3. 為什麼 GUI 對於批次處理 100 個 FASTQ 檔不適合？</p>
+<p data-lang="en">3. Why is a GUI a poor fit for processing 100 FASTQ files in batch?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. GUI 不能讀檔案</span><span data-lang="en">A. GUIs can't read files</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. GUI 沒有滑鼠</span><span data-lang="en">B. GUIs lack a mouse</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. 無法精確自動化、難以重現、需手動重複點擊</span><span data-lang="en">C. They can't reliably automate, are hard to reproduce and require repeated clicking</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. GUI 比 CLI 更慢處理數字</span><span data-lang="en">D. GUIs are slower at math than CLIs</span></div>
+</div>
+<div class="quiz-feedback"></div></div>
+</section>
+
+<nav class="page-nav">
+  <a href="index.html"><span class="nav-dir" data-zh="← 首頁" data-en="← Home">← 首頁</span><span class="nav-title" data-zh="課程總覽" data-en="Course Hub">課程總覽</span></a>
+  <a href="filesystem.html"><span class="nav-dir" data-zh="下一章 →" data-en="Next →">下一章 →</span><span class="nav-title">Ch 2: Terminal & Filesystem</span></a>
+</nav>
+</main>
+<footer class="site-footer">© Charlene — Linux for Bioinformatics Interactive Tutorial</footer>
+<script src="i18n.js"></script>
+<script src="common.js"></script>
+<script>
+TermSim.create('t-intro',{
+  prompt:'student@bio:~$',
+  title:'first-terminal',
+  banner:'Welcome! Try: echo hello bioinformatics  |  whoami  |  date  |  pwd',
+  validate:function(cmd){
+    const c=cmd.trim();
+    if(c.startsWith('echo ')){
+      return {ok:true,out:c.slice(5)};
+    }
+    if(c==='whoami') return {ok:true,out:'student'};
+    if(c==='date')   return {ok:true,out:'Sat May 02 10:00:00 UTC 2026'};
+    if(c==='pwd')    return {ok:true,out:'/home/student'};
+    if(c==='ls')     return {ok:true,out:'project/  README.md'};
+    if(c==='clear'||c==='cls'){ document.querySelector('[data-term-id="t-intro"] .terminal-body').innerHTML=''; return {ok:true,out:''}; }
+    if(c.startsWith('cd '))  return {ok:false,err:true,out:'(this demo terminal does not change directories — try cd in Ch 2)'};
+    return {ok:false,err:true,out:'sh: command not found: '+c+'  — try one of: echo, whoami, date, pwd, ls'};
+  }
+});
+</script>
+</body></html>

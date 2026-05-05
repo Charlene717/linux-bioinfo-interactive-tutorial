@@ -1,0 +1,80 @@
+<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Linux for Bioinformatics — Interactive Tutorial</title>
+<meta name="description" content="From command line basics to reproducible NGS pipelines — a bilingual interactive Linux tutorial designed for bioinformatics.">
+<link rel="stylesheet" href="styles.css"></head><body>
+<nav class="top-nav"><div class="top-nav-inner">
+  <a href="index.html" class="top-nav-brand"><span>🐧</span> <span data-zh="Linux 生資教學" data-en="Linux for Bioinfo">Linux 生資教學</span></a>
+  <ul class="top-nav-links">
+    <li><a href="intro.html">Intro</a></li>
+    <li><a href="filesystem.html">Shell</a></li>
+    <li><a href="file-ops.html">Files</a></li>
+    <li><a href="text-streams.html">Streams</a></li>
+    <li><a href="grep-cut-sort.html">grep/cut</a></li>
+    <li><a href="awk-sed.html">awk/sed</a></li>
+    <li><a href="download-compress.html">Net/Zip</a></li>
+    <li><a href="conda.html">Conda</a></li>
+    <li><a href="bio-formats.html">Formats</a></li>
+    <li><a href="ngs-qc.html">QC</a></li>
+    <li><a href="mapping.html">Mapping</a></li>
+    <li><a href="bash-scripting.html">Bash</a></li>
+    <li><a href="workflow.html">Workflow</a></li>
+    <li><a href="hpc-container.html">HPC</a></li>
+  </ul>
+</div></nav>
+<header class="hub-hero"><div style="position:relative;z-index:1;">
+<h1 data-zh="生物資訊 Linux 互動式教學" data-en="Linux for Bioinformatics — Interactive Tutorial">生物資訊 Linux 互動式教學</h1>
+<p data-lang="zh">從命令列到可重現分析流程 — 14 個章節循序漸進，每一個指令都對應到真實的生物資訊情境，搭配互動終端機、模擬練習與自我測驗。</p>
+<p data-lang="en">From the command line to reproducible analysis pipelines — 14 progressive chapters where every command maps to a real bioinformatics scenario, paired with an interactive terminal, simulations and self-checks.</p>
+</div></header>
+
+<h2 class="hub-section-title"><span>STAGE 1</span> <span data-zh="基礎篇 — 命令列與檔案系統" data-en="Beginner — Command Line & File System">基礎篇 — 命令列與檔案系統</span></h2>
+<p class="hub-section-desc" data-lang="zh">先學會在 Linux 中找路、看檔、改名、建立專案結構，建立真正能整理 NGS 資料的能力。</p>
+<p class="hub-section-desc" data-lang="en">Learn to navigate, view, rename and build a project skeleton — the foundation for organising NGS data on Linux.</p>
+<div class="hub-steps-grid">
+  <a href="intro.html" class="hub-card"><div class="hub-emoji">🧭</div><span class="step-num">Ch 1</span><h3 data-zh="為什麼生資需要 Linux？" data-en="Why Linux for Bioinfo?">為什麼生資需要 Linux？</h3><p data-lang="zh">理解 Linux 在 NGS、HPC、可重現分析中的角色，以及課程學習地圖。</p><p data-lang="en">Understand Linux's role in NGS, HPC, reproducible analysis — and the course roadmap.</p></a>
+  <a href="filesystem.html" class="hub-card"><div class="hub-emoji">🗂️</div><span class="step-num">Ch 2</span><h3 data-zh="Terminal、Shell 與檔案系統" data-en="Terminal, Shell & Filesystem">Terminal、Shell 與檔案系統</h3><p data-lang="zh">pwd、cd、ls、絕對/相對路徑，從 0 開始用 NGS 專案結構練習。</p><p data-lang="en">pwd, cd, ls, absolute vs relative paths — practiced on a real NGS project tree.</p></a>
+  <a href="file-ops.html" class="hub-card"><div class="hub-emoji">📁</div><span class="step-num">Ch 3</span><h3 data-zh="檔案操作與權限" data-en="File Ops & Permissions">檔案操作與權限</h3><p data-lang="zh">cp、mv、rm、mkdir、chmod、ln — 安全管理 raw_data 與 reference。</p><p data-lang="en">cp, mv, rm, mkdir, chmod, ln — safely manage raw_data and reference files.</p></a>
+  <a href="text-streams.html" class="hub-card"><div class="hub-emoji">🌊</div><span class="step-num">Ch 4</span><h3 data-zh="文字檔與串流處理" data-en="Text Streams & Pipes">文字檔與串流處理</h3><p data-lang="zh">cat、less、head、tail、wc、pipe、redirect — 不開檔就能讀懂大型 FASTQ。</p><p data-lang="en">cat, less, head, tail, wc, pipes, redirects — read huge FASTQs without opening them.</p></a>
+</div>
+
+<h2 class="hub-section-title"><span>STAGE 2</span> <span data-zh="中階篇 — 文字處理與環境管理" data-en="Intermediate — Text Power Tools & Env Mgmt">中階篇 — 文字處理與環境管理</span></h2>
+<p class="hub-section-desc" data-lang="zh">把 Linux 變成生物資訊資料的瑞士刀：grep / cut / awk / sed 處理 GTF、BED、樣本表，並學會用 conda 管理可重現的軟體環境。</p>
+<p class="hub-section-desc" data-lang="en">Turn Linux into a bioinformatics Swiss-army knife: grep / cut / awk / sed on GTF, BED, sample sheets — plus conda for reproducible environments.</p>
+<div class="hub-steps-grid">
+  <a href="grep-cut-sort.html" class="hub-card"><div class="hub-emoji">🔍</div><span class="step-num">Ch 5</span><h3 data-zh="搜尋、篩選與欄位處理" data-en="Search, Filter & Columns">搜尋、篩選與欄位處理</h3><p data-lang="zh">grep、cut、sort、uniq、paste、join — 從 GTF 抽出 gene、做 QC summary 表。</p><p data-lang="en">grep, cut, sort, uniq, paste, join — extract genes from GTF, build QC summary tables.</p></a>
+  <a href="awk-sed.html" class="hub-card"><div class="hub-emoji">⚙️</div><span class="step-num">Ch 6</span><h3 data-zh="awk 與 sed 高階文字處理" data-en="awk & sed: Power Text Tools">awk 與 sed</h3><p data-lang="zh">欄位運算、條件判斷、批次取代 — 處理 GTF/BED/sample sheet 的進階武器。</p><p data-lang="en">Field arithmetic, conditionals, batch substitution — power tools for GTF/BED/sample sheets.</p></a>
+  <a href="download-compress.html" class="hub-card"><div class="hub-emoji">📦</div><span class="step-num">Ch 7</span><h3 data-zh="壓縮、下載與資料完整性" data-en="Download, Compression & Integrity">壓縮、下載與資料完整性</h3><p data-lang="zh">wget、curl、rsync、gzip、tar、md5sum — 下載公開資料並驗證 FASTQ 完整性。</p><p data-lang="en">wget, curl, rsync, gzip, tar, md5sum — fetch public data and verify FASTQ integrity.</p></a>
+  <a href="conda.html" class="hub-card"><div class="hub-emoji">🐍</div><span class="step-num">Ch 8</span><h3 data-zh="conda、Bioconda 與環境管理" data-en="Conda, Bioconda & Envs">conda 與環境管理</h3><p data-lang="zh">conda / mamba、Bioconda、environment.yml — 每個專案一個環境，可重現性的起點。</p><p data-lang="en">conda / mamba, Bioconda, environment.yml — one env per project, the basis of reproducibility.</p></a>
+</div>
+
+<h2 class="hub-section-title"><span>STAGE 3</span> <span data-zh="生資應用篇 — 格式與工具實戰" data-en="Applied — Bio Formats & Tools">生資應用篇 — 格式與工具實戰</span></h2>
+<p class="hub-section-desc" data-lang="zh">把 Linux 技能落到 NGS 真正的工作流：FASTQ/FASTA/GTF/BED/SAM/BAM/VCF、FastQC、MultiQC、samtools、bedtools。</p>
+<p class="hub-section-desc" data-lang="en">Apply Linux to real NGS work: FASTQ/FASTA/GTF/BED/SAM/BAM/VCF, FastQC, MultiQC, samtools, bedtools.</p>
+<div class="hub-steps-grid">
+  <a href="bio-formats.html" class="hub-card"><div class="hub-emoji">🧬</div><span class="step-num">Ch 9</span><h3 data-zh="生物資訊檔案格式" data-en="Bioinformatics File Formats">生物資訊檔案格式</h3><p data-lang="zh">FASTQ / FASTA / GTF / GFF / BED / SAM / BAM / VCF — 認識欄位、檢查、抽樣。</p><p data-lang="en">FASTQ / FASTA / GTF / GFF / BED / SAM / BAM / VCF — fields, sanity checks, sampling.</p></a>
+  <a href="ngs-qc.html" class="hub-card"><div class="hub-emoji">🧪</div><span class="step-num">Ch 10</span><h3 data-zh="NGS QC 實作 (FastQC + MultiQC)" data-en="NGS QC (FastQC + MultiQC)">NGS QC 實作</h3><p data-lang="zh">批次跑 FastQC、整合 MultiQC 報告、解讀常見品質指標。</p><p data-lang="en">Batch FastQC, aggregate via MultiQC, and read common quality metrics.</p></a>
+  <a href="mapping.html" class="hub-card"><div class="hub-emoji">🎯</div><span class="step-num">Ch 11</span><h3 data-zh="Mapping 與 SAM/BAM 處理" data-en="Mapping & SAM/BAM">Mapping 與 SAM/BAM 處理</h3><p data-lang="zh">bwa / hisat2 / minimap2、samtools sort/index、flag 統計、BAM 整理。</p><p data-lang="en">bwa / hisat2 / minimap2, samtools sort/index, flag stats, BAM tidying.</p></a>
+</div>
+
+<h2 class="hub-section-title"><span>STAGE 4</span> <span data-zh="進階篇 — 自動化、Workflow 與 HPC" data-en="Advanced — Automation, Workflow & HPC">進階篇 — 自動化、Workflow 與 HPC</span></h2>
+<p class="hub-section-desc" data-lang="zh">從一次性指令成長為可重現 pipeline：Bash script → Snakemake/Nextflow → Slurm + Container。</p>
+<p class="hub-section-desc" data-lang="en">Grow from one-off commands to reproducible pipelines: Bash script → Snakemake/Nextflow → Slurm + Container.</p>
+<div class="hub-steps-grid">
+  <a href="bash-scripting.html" class="hub-card"><div class="hub-emoji">📜</div><span class="step-num">Ch 12</span><h3 data-zh="Bash Scripting 與批次化" data-en="Bash Scripting & Batch Jobs">Bash Scripting 與批次化</h3><p data-lang="zh">變數、loop、條件判斷、set -euo pipefail、log — 把指令寫成可重跑流程。</p><p data-lang="en">Variables, loops, conditionals, set -euo pipefail, logging — turn commands into rerunnable scripts.</p></a>
+  <a href="workflow.html" class="hub-card"><div class="hub-emoji">🔧</div><span class="step-num">Ch 13</span><h3 data-zh="Workflow Manager (Snakemake / Nextflow)" data-en="Workflow Managers">Workflow Manager</h3><p data-lang="zh">rule / process / dependency — 把 Bash script 升級為標準 workflow，一鍵重跑。</p><p data-lang="en">rule / process / dependency — upgrade Bash scripts to standard workflows; rerun in one click.</p></a>
+  <a href="hpc-container.html" class="hub-card"><div class="hub-emoji">🚀</div><span class="step-num">Ch 14</span><h3 data-zh="HPC、Slurm 與容器" data-en="HPC, Slurm & Containers">HPC、Slurm 與容器</h3><p data-lang="zh">sbatch、資源規劃、Apptainer / Docker — 把流程部署到 cluster 與容器化環境。</p><p data-lang="en">sbatch, resource planning, Apptainer / Docker — deploy pipelines on clusters and containers.</p></a>
+</div>
+
+<h2 class="hub-section-title"><span>EXTRA</span> <span data-zh="學習資源" data-en="Resources">學習資源</span></h2>
+<p class="hub-section-desc" data-lang="zh">每章包含：① 概念解說 ② Cheat sheet ③ 互動終端機（可輸入指令並驗證）④ 真實 NGS 場景練習 ⑤ 雙語自我測驗。建議按照章節順序學習，亦可作為查詢手冊使用。</p>
+<p class="hub-section-desc" data-lang="en">Each chapter includes: ① concept explanation ② cheat sheet ③ interactive terminal (type commands and get checked) ④ real NGS exercises ⑤ bilingual self-check. Best followed in order, also usable as a reference.</p>
+<div class="hub-steps-grid">
+  <div class="hub-card" style="cursor:default"><div class="hub-emoji">🧰</div><span class="step-num" data-zh="先備能力" data-en="Prerequisites">先備能力</span><h3 data-zh="不需要程式背景" data-en="No coding background required">不需要程式背景</h3><p data-lang="zh">只需理解「檔案／資料夾」與「純文字／表格檔案」的差別。生物背景者可從零開始。</p><p data-lang="en">You only need to know what a "file/folder" and a "text/table file" are. Biology background is enough to start from zero.</p></div>
+  <div class="hub-card" style="cursor:default"><div class="hub-emoji">🎯</div><span class="step-num" data-zh="學習成果" data-en="Outcomes">學習成果</span><h3 data-zh="獨立完成迷你 pipeline" data-en="Build your own mini pipeline">獨立完成迷你 pipeline</h3><p data-lang="zh">從 raw_data 到 multiqc / aligned BAM / count matrix，完整可重現專案資料夾。</p><p data-lang="en">From raw_data to multiqc / aligned BAM / count matrix — a full reproducible project skeleton.</p></div>
+  <div class="hub-card" style="cursor:default"><div class="hub-emoji">📚</div><span class="step-num" data-zh="使用建議" data-en="How to use">使用建議</span><h3 data-zh="逐章 + 動手操作" data-en="Chapter by chapter + hands-on">逐章 + 動手操作</h3><p data-lang="zh">每一章請務必親手在互動終端機輸入幾個指令，看到結果再進入下一章。</p><p data-lang="en">In each chapter, type a few commands into the interactive terminal — see the output before moving on.</p></div>
+</div>
+
+<div style="height:60px"></div>
+<footer class="site-footer">© Charlene — Linux for Bioinformatics Interactive Tutorial</footer>
+<script src="i18n.js"></script>
+</body></html>

@@ -1,0 +1,267 @@
+<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Ch 7: Download, Compression & Integrity — Linux Tutorial</title>
+<link rel="stylesheet" href="styles.css">
+</head><body>
+<nav class="top-nav"><div class="top-nav-inner">
+  <a href="index.html" class="top-nav-brand"><span>🐧</span> <span data-zh="Linux 生資教學" data-en="Linux for Bioinfo">Linux 生資教學</span></a>
+  <ul class="top-nav-links">
+    <li><a href="intro.html">Intro</a></li><li><a href="filesystem.html">Shell</a></li><li><a href="file-ops.html">Files</a></li><li><a href="text-streams.html">Streams</a></li><li><a href="grep-cut-sort.html">grep/cut</a></li><li><a href="awk-sed.html">awk/sed</a></li><li><a href="download-compress.html" class="active">Net/Zip</a></li><li><a href="conda.html">Conda</a></li><li><a href="bio-formats.html">Formats</a></li><li><a href="ngs-qc.html">QC</a></li><li><a href="mapping.html">Mapping</a></li><li><a href="bash-scripting.html">Bash</a></li><li><a href="workflow.html">Workflow</a></li><li><a href="hpc-container.html">HPC</a></li>
+  </ul>
+</div></nav>
+<div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
+<header class="page-hero"><div class="step-badge">CHAPTER 7 / 14</div>
+<h1 data-zh="壓縮、下載與資料完整性" data-en="Download, Compression & Data Integrity">壓縮、下載與資料完整性</h1>
+<p class="subtitle" data-lang="zh">wget、curl、rsync、gzip、bgzip、tar、md5sum、sha256sum — 把公開資料從伺服器搬回家，並確保它沒壞掉。</p>
+<p class="subtitle" data-lang="en">wget, curl, rsync, gzip, bgzip, tar, md5sum, sha256sum — pull public data home and prove it isn't broken.</p>
+</header>
+<main class="content-wrap">
+
+<section class="section">
+<div class="section-label" data-zh="下載" data-en="DOWNLOAD">下載</div>
+<h2 data-zh="wget vs curl vs rsync — 該選哪一個？" data-en="wget vs curl vs rsync — which one?">wget vs curl vs rsync — 該選哪一個？</h2>
+<table class="comp-table">
+<thead><tr><th data-zh="工具" data-en="Tool">工具</th><th data-zh="適合情境" data-en="When to use">適合情境</th><th data-zh="關鍵特性" data-en="Key features">關鍵特性</th></tr></thead>
+<tbody>
+<tr><td><strong>wget</strong></td>
+    <td data-zh="一次下載一個 / 一個資料夾（HTTP/FTP）" data-en="Single file or whole dir (HTTP/FTP)">一次下載一個 / 一個資料夾</td>
+    <td data-zh="-c 續傳；-r 遞迴；簡單可靠" data-en="-c resume; -r recursive; simple, reliable">-c 續傳；-r 遞迴；簡單可靠</td></tr>
+<tr><td><strong>curl</strong></td>
+    <td data-zh="API、需要 header / cookie / POST 的情境" data-en="APIs, custom headers/cookies, POST">API、自訂 header / POST</td>
+    <td data-zh="-o 指定輸出；-L 跟隨 redirect；功能很豐富" data-en="-o output; -L follow redirects; very flexible">-o 輸出；-L follow redirect</td></tr>
+<tr><td><strong>rsync</strong></td>
+    <td data-zh="大量檔案或資料夾，需斷點續傳、僅同步差異" data-en="Many files / dirs, resume + delta sync">資料夾同步</td>
+    <td data-zh="只傳差異、可斷點續傳；HPC 必備" data-en="Transfers only deltas, resumable; HPC essential">只傳差異 + 續傳</td></tr>
+</tbody></table>
+
+<h3 data-zh="實戰範例" data-en="Practical examples">實戰範例</h3>
+<div class="code-tabs">
+<div class="code-tab-btns">
+<button class="code-tab-btn active" onclick="switchTab(this,'d1')">wget</button>
+<button class="code-tab-btn" onclick="switchTab(this,'d2')">curl</button>
+<button class="code-tab-btn" onclick="switchTab(this,'d3')">rsync</button>
+<button class="code-tab-btn" onclick="switchTab(this,'d4')">SRA</button>
+</div>
+<div class="code-tab-content active" id="d1"><pre><span class="comment"># 下載 GENCODE GTF（含斷點續傳）
+# Download GENCODE GTF with resume support</span>
+<span class="func">wget</span> -c <span class="str">"https://ftp.ebi.ac.uk/.../gencode.v44.annotation.gtf.gz"</span>
+
+<span class="comment"># 下載整個 FTP 目錄
+# Download an entire FTP folder</span>
+<span class="func">wget</span> -r -np -nH --cut-dirs=3 <span class="str">"ftp://ftp.ensembl.org/pub/release-110/gtf/homo_sapiens/"</span></pre></div>
+<div class="code-tab-content" id="d2"><pre><span class="comment"># 用 curl 下載並重新命名
+# Download and rename with curl</span>
+<span class="func">curl</span> -L -o gencode.gtf.gz <span class="str">"https://ftp.ebi.ac.uk/.../gencode.v44.gtf.gz"</span>
+
+<span class="comment"># 呼叫 Ensembl REST API 查詢基因
+# Query the Ensembl REST API for a gene</span>
+<span class="func">curl</span> <span class="str">"https://rest.ensembl.org/lookup/symbol/human/TP53?expand=1"</span> \
+  -H <span class="str">'Content-Type: application/json'</span> <span class="op">|</span> python -m json.tool</pre></div>
+<div class="code-tab-content" id="d3"><pre><span class="comment"># 把本地分析結果同步到實驗室伺服器（只傳差異、可恢復）
+# Sync local results to lab server (delta + resumable)</span>
+<span class="func">rsync</span> -avzh --progress \
+  results/ \
+  charlene@server:/data/projects/rnaseq/results/
+
+<span class="comment"># 從 cluster 拉檔案下來
+# Pull files from cluster</span>
+<span class="func">rsync</span> -avzh charlene@cluster:~/work/multiqc_report.html ./</pre></div>
+<div class="code-tab-content" id="d4"><pre><span class="comment"># SRA 公開資料下載 (sra-tools / fasterq-dump)
+# Public SRA download — install via conda first</span>
+<span class="func">conda</span> install -c bioconda sra-tools -y
+<span class="func">prefetch</span> SRR1234567
+<span class="func">fasterq-dump</span> SRR1234567 --split-files --gzip</pre></div>
+</div>
+</section>
+
+<!-- Compression -->
+<section class="section">
+<div class="section-label" data-zh="壓縮" data-en="COMPRESSION">壓縮</div>
+<h2 data-zh="gzip / bgzip / tar — NGS 必懂的壓縮技" data-en="gzip / bgzip / tar — NGS-essential compression">gzip / bgzip / tar — NGS 必懂的壓縮技</h2>
+<div class="cheat">
+<div class="cheat-cmd">gzip large.fastq</div><div class="cheat-desc" data-zh="壓縮（會原檔變成 .gz、原檔消失）" data-en="Compress in place — original is replaced by .gz">壓縮（原檔消失）</div>
+<div class="cheat-cmd">gunzip large.fastq.gz</div><div class="cheat-desc" data-zh="解壓（.gz 消失，還原為原檔）" data-en="Decompress — .gz is replaced by original">解壓</div>
+<div class="cheat-cmd">gzip -k file</div><div class="cheat-desc" data-zh="-k：保留原檔" data-en="-k: keep original">壓縮但保留原檔</div>
+<div class="cheat-cmd">zcat sample.fastq.gz | head</div><div class="cheat-desc" data-zh="串流式讀取 .gz（最常用）" data-en="Stream-read .gz (most common)">串流式讀取</div>
+<div class="cheat-cmd">bgzip sample.vcf</div><div class="cheat-desc" data-zh="bgzip：可被 tabix 索引（VCF/GFF/BED 標準）" data-en="bgzip: tabix-indexable (standard for VCF/GFF/BED)">VCF/GFF 用 bgzip</div>
+<div class="cheat-cmd">tabix -p vcf sample.vcf.gz</div><div class="cheat-desc" data-zh="建立 .tbi 索引，支援 region 隨機存取" data-en="Build .tbi index for fast region lookup">建立 tabix 索引</div>
+<div class="cheat-cmd">tar -czvf bk.tar.gz dir/</div><div class="cheat-desc" data-zh="打包 + gzip 壓縮整個資料夾" data-en="Pack and gzip an entire folder">打包資料夾</div>
+<div class="cheat-cmd">tar -xzvf bk.tar.gz</div><div class="cheat-desc" data-zh="解開 .tar.gz" data-en="Extract a .tar.gz">解壓 tar.gz</div>
+<div class="cheat-cmd">pigz -p 8 sample.fastq</div><div class="cheat-desc" data-zh="多執行緒壓縮，比 gzip 快很多（NGS 必裝）" data-en="Multi-threaded gzip — much faster on NGS files">多執行緒 gzip</div>
+</div>
+<div class="callout warn"><span class="callout-icon">⚠️</span><div>
+<p data-lang="zh"><strong>gzip vs bgzip：</strong>普通 gzip 不支援隨機存取；<strong>bgzip</strong> 是「block gzip」，每 64KB 一個 block 可以被 tabix 建索引——VCF / GFF / BED 一律使用 bgzip 而非 gzip。</p>
+<p data-lang="en"><strong>gzip vs bgzip:</strong> regular gzip cannot be randomly accessed. <strong>bgzip</strong> ("block gzip") makes 64KB blocks indexable by tabix — VCF / GFF / BED <em>always</em> use bgzip, never plain gzip.</p>
+</div></div>
+</section>
+
+<!-- Integrity -->
+<section class="section">
+<div class="section-label" data-zh="完整性" data-en="INTEGRITY">完整性</div>
+<h2 data-zh="md5sum / sha256sum — 確保 30 GB 檔案沒壞掉" data-en="md5sum / sha256sum — guarantee a 30 GB file is intact">md5sum / sha256sum — 確保 30 GB 檔案沒壞掉</h2>
+<div data-lang="zh">
+<p>大型 NGS 檔案下載中途斷線、磁碟壞道、上傳檔案丟 byte，都可能讓檔案<strong>看似存在</strong>但內容已壞。每個分析的第一步都應該驗證 checksum。</p>
+</div>
+<div data-lang="en">
+<p>Large NGS downloads can disconnect mid-flight, disks can corrupt blocks, and uploads can drop bytes. Files may <strong>look present</strong> but be silently broken. Always verify a checksum before any analysis.</p>
+</div>
+<div class="code-tabs">
+<div class="code-tab-btns">
+<button class="code-tab-btn active" onclick="switchTab(this,'i1')" data-zh="計算" data-en="Compute">計算</button>
+<button class="code-tab-btn" onclick="switchTab(this,'i2')" data-zh="比對" data-en="Verify">比對</button>
+<button class="code-tab-btn" onclick="switchTab(this,'i3')" data-zh="批次驗證" data-en="Batch">批次驗證</button>
+</div>
+<div class="code-tab-content active" id="i1"><pre><span class="comment"># 計算單一檔案的 md5
+# Compute md5 for a single file</span>
+<span class="func">md5sum</span> sample.fastq.gz
+<span class="comment"># d41d8cd98f00b204e9800998ecf8427e  sample.fastq.gz</span>
+
+<span class="comment"># sha256 更安全（建議用於發佈資料）
+# sha256 is stronger (recommended for publications)</span>
+<span class="func">sha256sum</span> sample.fastq.gz</pre></div>
+<div class="code-tab-content" id="i2"><pre><span class="comment"># 將所有 .fastq.gz 寫進 checksums.md5
+# Write checksums for every fastq.gz</span>
+<span class="func">md5sum</span> *.fastq.gz <span class="op">&gt;</span> checksums.md5
+
+<span class="comment"># 之後（甚至幾個月後）驗證：
+# Later verify (even months later):</span>
+<span class="func">md5sum</span> -c checksums.md5
+<span class="comment"># sampleA.fastq.gz: OK
+# sampleB.fastq.gz: FAILED  ← 這個檔案有問題！</span></pre></div>
+<div class="code-tab-content" id="i3"><pre><span class="comment"># 結合 find 與 xargs 批次計算
+# Combine find + xargs for batch checksums</span>
+<span class="func">find</span> raw_data/ -name <span class="str">"*.fastq.gz"</span> -print0 \
+  <span class="op">|</span> <span class="func">xargs</span> -0 <span class="func">md5sum</span> \
+  <span class="op">&gt;</span> raw_data.checksums.md5
+
+<span class="comment"># 從公開資料下載時務必比對網站提供的 checksum</span></pre></div>
+</div>
+<div class="callout tip"><span class="callout-icon">💡</span><div>
+<p data-lang="zh"><strong>SOP 建議：</strong>每個 raw_data/ 都附一份 <code>checksums.md5</code>，收檔當天執行 <code>md5sum -c</code>，確認後把整個資料夾設成唯讀。日後任何懷疑檔案壞掉時，再跑一次比對。</p>
+<p data-lang="en"><strong>SOP suggestion:</strong> ship every raw_data/ with a <code>checksums.md5</code>, run <code>md5sum -c</code> on day-one, then set the folder read-only. Re-verify whenever a file feels suspicious later.</p>
+</div></div>
+</section>
+
+<!-- Common public data sources -->
+<section class="section">
+<div class="section-label" data-zh="資料來源" data-en="DATA SOURCES">資料來源</div>
+<h2 data-zh="生物資訊常用公開資料庫" data-en="Common public bioinformatics repositories">生物資訊常用公開資料庫</h2>
+<div class="card-grid cols-3">
+  <div class="card"><h4>📦 SRA / ENA</h4>
+    <p data-lang="zh">原始 NGS reads，FASTQ 來源；用 <code>sra-tools</code>、<code>fasterq-dump</code>、或 ENA 直接 wget。</p>
+    <p data-lang="en">Raw NGS reads (FASTQ source). Use <code>sra-tools</code>, <code>fasterq-dump</code>, or wget from ENA directly.</p></div>
+  <div class="card"><h4>🧬 GENCODE / Ensembl</h4>
+    <p data-lang="zh">人 / 鼠等模式生物的 reference genome、GTF/GFF；推薦使用 GENCODE / Ensembl 的 annotation。</p>
+    <p data-lang="en">Reference genomes and GTF/GFF for human, mouse and others. GENCODE / Ensembl annotations are the standard.</p></div>
+  <div class="card"><h4>🌐 UCSC Genome Browser</h4>
+    <p data-lang="zh">提供 chromsizes、tracks、liftover chain 等。檔名常用 <code>chr1</code>（不是 <code>1</code>）。</p>
+    <p data-lang="en">Provides chrom sizes, tracks, liftover chains. Uses <code>chr1</code> naming (not <code>1</code>).</p></div>
+  <div class="card"><h4>🧪 GEO</h4>
+    <p data-lang="zh">已分析的 microarray / RNA-seq / ATAC-seq 資料、<code>GSE</code> 編號；可拿 expression matrix 與 metadata。</p>
+    <p data-lang="en">Processed microarray / RNA-seq / ATAC-seq datasets with <code>GSE</code> identifiers. Provides expression matrices and metadata.</p></div>
+  <div class="card"><h4>💧 1000G / gnomAD</h4>
+    <p data-lang="zh">人類群體 variants 的金本位資料庫，VCF 來源。</p>
+    <p data-lang="en">Population-scale human variant resources — gold-standard VCF data.</p></div>
+  <div class="card"><h4>🏥 TCGA / ICGC</h4>
+    <p data-lang="zh">癌症基因體資料；通常需要 controlled access（dbGaP、EGA）。</p>
+    <p data-lang="en">Cancer-genomics resources; typically require controlled access (dbGaP, EGA).</p></div>
+</div>
+</section>
+
+<!-- Hands-on -->
+<section class="section">
+<div class="section-label" data-zh="動手做" data-en="HANDS-ON">動手做</div>
+<h2 data-zh="互動：下載與壓縮模擬" data-en="Interactive: download & compression simulation">互動：下載與壓縮模擬</h2>
+<div class="interactive-panel">
+<div data-term-id="t-net"></div>
+</div>
+</section>
+
+<!-- Quiz -->
+<section class="quiz-section">
+<h3>📝 <span data-zh="自我檢測" data-en="Self-Check">自我檢測</span></h3>
+<div class="quiz-q" data-answer="2" data-explain-zh="rsync 只傳差異 + 可斷點續傳，最適合大量檔案 / 資料夾搬遷。" data-explain-en="rsync sends only deltas and is resumable — best for moving lots of files/folders.">
+<p data-lang="zh">1. 從本地把 200 GB 的 results/ 同步到伺服器，最適合用？</p>
+<p data-lang="en">1. Best tool to sync a 200 GB local results/ to a remote server?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><code>scp -r</code></div>
+<div class="quiz-opt" data-idx="1"><code>wget</code></div>
+<div class="quiz-opt" data-idx="2"><code>rsync -avzh --progress</code></div>
+<div class="quiz-opt" data-idx="3"><code>cp -r</code></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="1" data-explain-zh="VCF/GFF/BED 通常用 bgzip 壓縮以便 tabix 建索引。" data-explain-en="VCF/GFF/BED use bgzip so tabix can build a position index.">
+<p data-lang="zh">2. 為什麼 VCF 檔通常用 <code>bgzip</code> 而非普通 <code>gzip</code>？</p>
+<p data-lang="en">2. Why use <code>bgzip</code> on VCF instead of plain <code>gzip</code>?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><span data-lang="zh">A. bgzip 壓得比較小</span><span data-lang="en">A. bgzip compresses more</span></div>
+<div class="quiz-opt" data-idx="1"><span data-lang="zh">B. bgzip 是 block-based，可被 tabix 建索引、支援隨機存取</span><span data-lang="en">B. bgzip is block-based, indexable by tabix for random access</span></div>
+<div class="quiz-opt" data-idx="2"><span data-lang="zh">C. gzip 不能用在 VCF</span><span data-lang="en">C. gzip can't compress VCF</span></div>
+<div class="quiz-opt" data-idx="3"><span data-lang="zh">D. bgzip 不會破壞檔案</span><span data-lang="en">D. bgzip is the only safe one</span></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="3" data-explain-zh="md5sum -c 會把每個檔案重算 md5 與檔內紀錄比對，輸出 OK/FAILED。" data-explain-en="md5sum -c recomputes md5 and compares with the recorded values; reports OK/FAILED per file.">
+<p data-lang="zh">3. 收到一份附 <code>checksums.md5</code> 的 NGS 資料，最佳第一步？</p>
+<p data-lang="en">3. You get NGS data with a <code>checksums.md5</code>. Best first step?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><code>cat checksums.md5</code></div>
+<div class="quiz-opt" data-idx="1"><code>md5sum *.fastq.gz</code></div>
+<div class="quiz-opt" data-idx="2"><code>head checksums.md5</code></div>
+<div class="quiz-opt" data-idx="3"><code>md5sum -c checksums.md5</code></div>
+</div><div class="quiz-feedback"></div></div>
+
+<div class="quiz-q" data-answer="0" data-explain-zh="pigz 是多執行緒版的 gzip，I/O 同樣產出 .gz 但顯著加速，是 NGS 環境必備。" data-explain-en="pigz is the multi-threaded gzip — same .gz output, much faster on NGS-scale files.">
+<p data-lang="zh">4. 在 32 核心伺服器上壓縮 100 個 fastq 檔，最快的選擇是？</p>
+<p data-lang="en">4. Compressing 100 fastq files on a 32-core server, which is fastest?</p>
+<div class="quiz-options">
+<div class="quiz-opt" data-idx="0"><code>pigz -p 16 *.fastq</code></div>
+<div class="quiz-opt" data-idx="1"><code>gzip *.fastq</code></div>
+<div class="quiz-opt" data-idx="2"><code>tar -czf out.tar.gz *.fastq</code></div>
+<div class="quiz-opt" data-idx="3"><code>zip *.fastq</code></div>
+</div><div class="quiz-feedback"></div></div>
+</section>
+
+<nav class="page-nav">
+  <a href="awk-sed.html"><span class="nav-dir" data-zh="← 上一章" data-en="← Previous">← 上一章</span><span class="nav-title">Ch 6: awk & sed</span></a>
+  <a href="conda.html"><span class="nav-dir" data-zh="下一章 →" data-en="Next →">下一章 →</span><span class="nav-title">Ch 8: Conda & Environments</span></a>
+</nav>
+</main>
+<footer class="site-footer">© Charlene — Linux for Bioinformatics Interactive Tutorial</footer>
+<script src="i18n.js"></script>
+<script src="common.js"></script>
+<script>
+TermSim.create('t-net',{
+  prompt:'student@bio:~$',
+  title:'download-compress-sim',
+  banner:'Simulated network. Try: wget URL  |  md5sum file  |  gzip / gunzip  |  tar -czvf  |  ls',
+  validate:function(cmd){
+    const c=cmd.trim();
+    if(c.startsWith('wget ')){
+      return {ok:true,out:'--2026-05-02 10:00:00--  '+c.slice(5)+'\nResolving server... done.\nHTTP request sent, awaiting response... 200 OK\nLength: 145 MB\nSaving to: \'sample.gtf.gz\'\n100%[================>] 145M  12.4MB/s   eta 0s\nsample.gtf.gz saved.'};
+    }
+    if(c.startsWith('curl ')){
+      if(c.includes('rest.ensembl.org')) return {ok:true,out:'{ "id": "ENSG00000141510", "display_name": "TP53", "biotype": "protein_coding" }'};
+      return {ok:true,out:'(curl simulated — content downloaded)'};
+    }
+    if(c.startsWith('rsync ')){
+      return {ok:true,out:'sending incremental file list\nresults/multiqc_report.html\nresults/fastqc/...\nsent 245.6M bytes  received 5.2K bytes\ntotal size is 245.6M  speedup is 1.00'};
+    }
+    if(c.startsWith('md5sum ')){
+      const f=c.slice(7).trim();
+      if(f==='-c checksums.md5') return {ok:true,out:'sampleA.fastq.gz: OK\nsampleB.fastq.gz: OK\nsampleC.fastq.gz: OK'};
+      const fakemd5=f.split('').reduce((a,c)=>(a*31+c.charCodeAt(0))>>>0,0).toString(16).padStart(8,'0').repeat(4).slice(0,32);
+      return {ok:true,out:fakemd5+'  '+f};
+    }
+    if(c.startsWith('sha256sum ')){
+      return {ok:true,out:'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  '+c.slice(10).trim()};
+    }
+    if(c.startsWith('gzip ')) return {ok:true,out:'compressed: '+c.slice(5)+' -> '+c.slice(5)+'.gz'};
+    if(c.startsWith('gunzip ')) return {ok:true,out:'decompressed: '+c.slice(7).replace('.gz','')};
+    if(c.startsWith('tar -czvf ')||c.startsWith('tar -czf ')){return {ok:true,out:'archive created: '+c.split(/\s+/)[2]};}
+    if(c.startsWith('tar -xzvf ')||c.startsWith('tar -xzf ')){return {ok:true,out:'extracted: '+c.split(/\s+/)[2]};}
+    if(c==='ls') return {ok:true,out:'sample.gtf.gz  sample.fastq.gz  README.md  checksums.md5'};
+    if(c==='clear'){document.querySelector('[data-term-id="t-net"] .terminal-body').innerHTML='';return {ok:true,out:''};}
+    return {ok:false,err:true,out:'sh: '+c+': try wget, curl, rsync, md5sum, sha256sum, gzip, gunzip, tar, ls'};
+  }
+});
+</script>
+</body></html>
